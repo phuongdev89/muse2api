@@ -22,6 +22,10 @@ router = APIRouter(tags=["images"], dependencies=[Depends(require_api_key)])
 
 # Reference images attached to one muse.ai message.
 MAX_REFERENCE_IMAGES = 4
+_SINGLE_2K_IMAGE = (
+    "Return exactly one image only, at 2K resolution (2048 pixels on the longest side). "
+    "Do not return multiple images, a collage, or a contact sheet."
+)
 
 # Asking muse.ai for a "transparent background" makes it reply with text only, so
 # ask for an easy-to-cut plain background and remove it locally instead.
@@ -32,7 +36,8 @@ _OUTFIT_EXTRACT_PROMPT = (
     "remove all accessories, jewelry, bags, hats, belts, socks, and all shoes/footwear. "
     "Show only the clothing garments, preserving their original design, colors, fabric, "
     "pattern, and details, arranged neatly as a clean product flat-lay on a pure white "
-    "background. No person, mannequin, accessories, footwear, text, or scene."
+    "background. No person, mannequin, accessories, footwear, text, or scene. "
+    "Keep the original image's exact pixel width, height, and aspect ratio in the output."
 )
 _OUTFIT_TRY_ON_PROMPT = (
     "Dress the person in the first reference image with the clothing shown in the second "
@@ -40,20 +45,23 @@ _OUTFIT_TRY_ON_PROMPT = (
     "Preserve the person's identity, face, hair, body shape, pose, and the original scene "
     "as closely as possible. Transfer only the garments, matching their colors, cut, "
     "fabric, pattern, and details. Fit the clothes naturally to the person's body. "
-    "Do not copy a person, mannequin, background, or accessories from the outfit reference."
+    "Do not copy a person, mannequin, background, or accessories from the outfit reference. "
+    "Keep the output at exactly the same pixel width, height, and aspect ratio as the first image."
 )
 _REMOVE_OBJECT_PROMPT = (
     "Remove the object or objects marked in the second reference image, which is a black "
     "and white selection mask. White areas indicate what to remove; black areas indicate "
     "what to preserve. The first reference image is the original photo. If there is no mask, "
     "remove only the object described in the additional instruction. Reconstruct the "
-    "background naturally and preserve all unselected content."
+    "background naturally and preserve all unselected content. "
+    "Keep the output at exactly the same pixel width, height, and aspect ratio as the original first image."
 )
 _ADD_ACCESSORY_PROMPT = (
     "The first reference image is the original photo and the second reference image shows "
     "the accessory to add. Add only that accessory naturally to the person or scene in the "
     "original photo. Preserve identity, pose, clothing, lighting, and all unrelated details. "
-    "Do not replace the original photo or copy the second image's background."
+    "Do not replace the original photo or copy the second image's background. "
+    "Keep the output at exactly the same pixel width, height, and aspect ratio as the first image."
 )
 _REPLACE_BACKGROUND_PROMPT = (
     "The first reference image is the original photo to edit. The second reference image "
@@ -61,7 +69,8 @@ _REPLACE_BACKGROUND_PROMPT = (
     "with the scene from the second image. Preserve the foreground person or objects, "
     "their identity, shape, pose, clothing, and details. Adapt perspective, lighting, and "
     "shadows so the composite looks natural. Do not copy foreground subjects from the "
-    "background reference."
+    "background reference. Keep the output at exactly the same pixel width, height, and "
+    "aspect ratio as the first image."
 )
 
 
@@ -121,10 +130,14 @@ async def _run(body: ImageGenerationRequest, refs: list[InputImage], base: str,
     spec = resolve_model(body.model, "image")
     transparent = body.background == "transparent"
     prompt = f"{body.prompt.rstrip('. ')}. {_CUTOUT_HINT}" if transparent else body.prompt
-    req = ImageRequest(prompt=prompt, model=spec.id, size=body.size, n=body.n,
+    upstream_prompt = f"{prompt.rstrip('. ')}. {_SINGLE_2K_IMAGE}"
+    req = ImageRequest(prompt=upstream_prompt, model=spec.id, size=body.size, n=1,
                        reference_images=refs, timeout=svc.settings.image_timeout)
-    results = (await svc.gateway.generate_image(req, account_id=account_id)
-               if account_id else await svc.gateway.generate_image(req))
+    results = []
+    for _ in range(max(1, body.n)):
+        generated = (await svc.gateway.generate_image(req, account_id=account_id)
+                     if account_id else await svc.gateway.generate_image(req))
+        results.extend(replace(item, revised_prompt=body.prompt) for item in generated[:1])
     if transparent:
         # After the gateway call, so the account is not held during matting.
         results = [replace(r, data=await svc.matting.remove(r.data), mime="image/png")

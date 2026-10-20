@@ -36,7 +36,14 @@ class ImageGenerationRequest(_Lenient):
     prompt: str = Field(min_length=1)
     model: str | None = None
     n: int = Field(default=1, ge=1, le=4)
-    size: str | None = None
+    size: str | None = Field(
+        default=None,
+        description=(
+            "Requested aspect ratio or output size. For reference-based edits, Muse is "
+            "instructed to preserve the source image dimensions and aspect ratio; this "
+            "field is a generation hint and does not resize the returned image."
+        ),
+    )
     response_format: Literal["url", "b64_json"] = "url"
     # Same values as OpenAI gpt-image-1. "transparent" cuts the subject out locally
     # and returns an RGBA PNG; "auto"/"opaque" leave the image as generated.

@@ -411,6 +411,7 @@ class BrowserDriver(MuseDriver):
         base = await self._state(tab)
         await self._attach(tab, images)
         await self._send(tab, prompt)
+        await self._wait_for_submission(tab, base)
         return base
 
     async def _deny_approvals(self, tab: _Tab) -> None:
@@ -482,6 +483,7 @@ class BrowserDriver(MuseDriver):
             base = await self._state(tab)
             await self._attach(tab, images)
             await self._send(tab, prompt)
+            await self._wait_for_submission(tab, base)
             return tab, base
         except CDPError as exc:
             await self._close_tab(tab)
@@ -492,6 +494,19 @@ class BrowserDriver(MuseDriver):
             await self._checkin(tab)
             raise
 
+    async def _wait_for_submission(self, tab: _Tab, base: dict) -> None:
+        """Wait until Muse visibly accepts a sent prompt before polling its reply."""
+        baseline_count = int(base.get("userCount", 0))
+        deadline = time.monotonic() + min(10.0, self.settings.first_token_timeout)
+        while time.monotonic() < deadline:
+            state = await self._state(tab)
+            if state.get("generating") or int(state.get("userCount", 0)) > baseline_count:
+                return
+            # Some Muse layouts clear the composer before the user bubble appears.
+            if await tab.session.evaluate(dom.INPUT_EMPTY):
+                return
+            await asyncio.sleep(0.1)
+        raise UpstreamTimeout("muse.ai did not accept the submitted message")
     async def chat_stream(self, account: Account, req: ChatRequest) -> AsyncIterator[str]:
         tab, base = await self._begin_chat(account, req)
         base_count, base_text = base.get("agentCount", 0), base.get("lastText", "")

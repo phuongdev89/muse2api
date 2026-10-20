@@ -146,6 +146,7 @@ Tạo ảnh bằng văn bản hoặc chỉnh sửa ảnh (img2img).
 - `model`: `"muse-image"` hoặc `"dall-e-3"` (alias).
 - `prompt`: Văn bản mô tả ảnh cần tạo.
 - `size`: `"1024x1024"` (1:1), `"1280x720"` (16:9), `"720x1280"` (9:16).
+- Với ảnh tham chiếu/chỉnh sửa, Muse được yêu cầu giữ nguyên chiều rộng, chiều cao pixel và tỉ lệ khung hình của ảnh nguồn được nêu trong prompt. API trả nguyên byte ảnh Muse tạo ra, không resize sau khi nhận; việc tuân thủ kích thước nguồn phụ thuộc Muse.
 - `background`: `"auto"` (mặc định), `"opaque"` hoặc `"transparent"`. Playground gửi `auto` khi không bật xóa phông.
 - `image`: URL hoặc Base64 Data URL ảnh tham chiếu (tối đa 4 ảnh).
 - `async`: `false` (mặc định - chờ kết quả) hoặc `true` (trả về Task ID để poll).
@@ -167,7 +168,11 @@ Tạo ảnh bằng văn bản hoặc chỉnh sửa ảnh (img2img).
 
 ## 5. Image Editing Tools
 
-Các endpoint multipart này dùng `muse-image` mặc định và trả về cùng cấu trúc `data[]` như Image Generation. Có thể truyền thêm `model`, `size` và `response_format` (`url` hoặc `b64_json`). Prompt là hướng dẫn bổ sung tùy chọn; thay bối cảnh dùng ảnh thứ hai làm ảnh tham chiếu nền.
+Các endpoint multipart này dùng `muse-image` mặc định và trả về cùng cấu trúc `data[]` như Image Generation. Có thể truyền thêm `model`, `size` và `response_format` (`url` hoặc `b64_json`). Prompt là hướng dẫn bổ sung tùy chọn; thay bối cảnh dùng ảnh thứ hai làm ảnh tham chiếu nền. Tất cả yêu cầu ảnh đều yêu cầu Muse trả đúng một ảnh 2K và không tạo collage. Với các thao tác chỉnh sửa, API cũng yêu cầu giữ nguyên kích thước pixel (chiều rộng và chiều cao) cùng tỉ lệ ảnh nguồn; đầu ra được trả trực tiếp, không resize phía gateway. Đây là chỉ dẫn cho Muse, kích thước thực tế vẫn tùy kết quả upstream.
+
+Quy tắc kích thước theo thao tác:
+- **Sửa ảnh**, **tách trang phục**, **xóa vật thể**: giữ chiều rộng, chiều cao và tỉ lệ ảnh gốc.
+- **Thử trang phục**, **thêm phụ kiện**, **thay bối cảnh**: giữ chiều rộng, chiều cao và tỉ lệ của ảnh 1 (ảnh `character` hoặc `image`).
 
 ### Tách trang phục (`POST /v1/images/outfits/extract`)
 

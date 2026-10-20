@@ -48,6 +48,7 @@ CHAT_STATE = f"""(() => {{
     return (s.overflowY === 'auto' || s.overflowY === 'scroll') && e.scrollHeight > e.clientHeight + 50;
   }});
   scrollers.forEach(e => {{ e.scrollTop = e.scrollHeight; }});
+  const userBubbles = [...document.querySelectorAll('[data-testid*="user-bubble"], [data-testid*="user-message"], [class*="hatch-user-bubble"]')];
   const bubbles = [...document.querySelectorAll({q(AGENT_BUBBLE)})];
   const last = bubbles.length ? (bubbles[bubbles.length - 1].innerText || '').trim() : '';
   const atts = [...document.querySelectorAll({q(ATTACHMENT)})].map(a => {{
@@ -62,7 +63,7 @@ CHAT_STATE = f"""(() => {{
     }};
   }});
   const tail = document.body ? document.body.innerText.slice(-600) : '';
-  return {{ agentCount: bubbles.length, lastText: last,
+  return {{ userCount: userBubbles.length, agentCount: bubbles.length, lastText: last,
             generating: !!document.querySelector({q(STOP_BUTTON)}),
             approval: !!document.querySelector({q(APPROVAL_CARD)}),
             attachments: atts, tail }};
