@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import hmac
 
-from fastapi import Request
+from fastapi import Depends, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from ..errors import Unauthorized
 from ..services.container import Services
+
+_bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def get_services(request: Request) -> Services:
@@ -34,11 +37,13 @@ def _identify(request: Request, key_id: str, key_name: str) -> None:
     request.state.key_name = key_name
 
 
-def require_api_key(request: Request) -> None:
+def require_api_key(
+    request: Request, _auth: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme)
+) -> None:
     """Accept the admin key, the legacy single ``api_key``, or any active stored key."""
     svc = get_services(request)
     s = svc.settings
-    provided = _bearer(request)
+    provided = (_auth.credentials if _auth else "") or _bearer(request)
     if not provided:
         raise Unauthorized("invalid or missing API key")
     # The admin key is a superset of the API key.
@@ -55,8 +60,11 @@ def require_api_key(request: Request) -> None:
     _identify(request, key.id, key.name)
 
 
-def require_admin_key(request: Request) -> None:
-    _check(_bearer(request), get_services(request).settings.effective_admin_key)
+def require_admin_key(
+    request: Request, _auth: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme)
+) -> None:
+    provided = (_auth.credentials if _auth else "") or _bearer(request)
+    _check(provided, get_services(request).settings.effective_admin_key)
 
 
 def public_base(request: Request) -> str:

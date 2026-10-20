@@ -26,25 +26,37 @@ class Gateway:
         self.max_failover = max_failover
 
     @asynccontextmanager
-    async def _lease(self, exclude: list[str], hint: str | None) -> AsyncIterator[Lease]:
+    async def _lease(
+        self, exclude: list[str], hint: str | None, account_id: str | None = None
+    ) -> AsyncIterator[Lease]:
         if not self.driver.requires_account and not self.pool.all():
             note_account(_ANONYMOUS.id)
             yield Lease(_ANONYMOUS)
             return
-        async with self.pool.lease(exclude=exclude, hint=hint) as lease:
+        async with self.pool.lease(exclude=exclude, hint=hint, account_id=account_id) as lease:
             note_account(lease.account.id)
             yield lease
 
-    def _should_retry(self, exc: UpstreamError, attempt: int, tried: list[str]) -> bool:
+    def _should_retry(
+        self,
+        exc: UpstreamError,
+        attempt: int,
+        tried: list[str],
+        account_id: str | None = None,
+    ) -> bool:
+        if account_id:
+            return False
         # With no other account to switch to, a retry would only replace the real
         # error with "no usable account in pool".
         return (exc.retryable and attempt < self.max_failover
                 and self.pool.has_alternative(tried))
 
-    async def chat_stream(self, req: ChatRequest) -> AsyncIterator[str]:
+    async def chat_stream(
+        self, req: ChatRequest, *, account_id: str | None = None
+    ) -> AsyncIterator[str]:
         tried: list[str] = []
         for attempt in range(self.max_failover + 1):
-            async with self._lease(tried, req.conversation_hint) as lease:
+            async with self._lease(tried, req.conversation_hint, account_id=account_id) as lease:
                 emitted = False
                 try:
                     async for delta in self.driver.chat_stream(lease.account, req):
@@ -55,26 +67,40 @@ class Gateway:
                     lease.fail(exc)
                     tried.append(lease.account.id)
                     # Once text reached the client we cannot transparently switch accounts.
-                    if emitted or not self._should_retry(exc, attempt, tried):
+                    if emitted or not self._should_retry(exc, attempt, tried, account_id=account_id):
                         raise
                     log.warning("chat failed on %s (%s), failing over", lease.account.id, exc)
 
-    async def _run(self, fn: Callable[[Account], Awaitable[T]], hint: str | None = None) -> T:
+    async def _run(
+        self,
+        fn: Callable[[Account], Awaitable[T]],
+        hint: str | None = None,
+        *,
+        account_id: str | None = None,
+    ) -> T:
         tried: list[str] = []
         for attempt in range(self.max_failover + 1):
-            async with self._lease(tried, hint) as lease:
+            async with self._lease(tried, hint, account_id=account_id) as lease:
                 try:
                     return await fn(lease.account)
                 except UpstreamError as exc:
                     lease.fail(exc)
                     tried.append(lease.account.id)
-                    if not self._should_retry(exc, attempt, tried):
+                    if not self._should_retry(exc, attempt, tried, account_id=account_id):
                         raise
                     log.warning("call failed on %s (%s), failing over", lease.account.id, exc)
         raise AssertionError("unreachable")
 
-    async def generate_image(self, req: ImageRequest) -> list[MediaResult]:
-        return await self._run(lambda acc: self.driver.generate_image(acc, req))
+    async def generate_image(
+        self, req: ImageRequest, *, account_id: str | None = None
+    ) -> list[MediaResult]:
+        return await self._run(
+            lambda acc: self.driver.generate_image(acc, req), account_id=account_id
+        )
 
-    async def generate_video(self, req: VideoRequest) -> MediaResult:
-        return await self._run(lambda acc: self.driver.generate_video(acc, req))
+    async def generate_video(
+        self, req: VideoRequest, *, account_id: str | None = None
+    ) -> MediaResult:
+        return await self._run(
+            lambda acc: self.driver.generate_video(acc, req), account_id=account_id
+        )

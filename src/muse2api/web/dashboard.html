@@ -126,6 +126,7 @@ h2 .link { margin-left: auto; text-transform: none; letter-spacing: 0; font-weig
 .btn.ghost { border-color: transparent; background: none; color: var(--muted); }
 .btn.ghost:hover { background: var(--panel-2); color: var(--text); }
 .btn.sm { padding: 2px 8px; font-size: 12.5px; line-height: 18px; border-radius: 6px; }
+.btn.icon-only { width: 32px; height: 32px; padding: 0; justify-content: center; }
 .btn:disabled { opacity: .5; cursor: default; }
 a.link, button.link { color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: none; font-size: 12.5px; }
 a.link:hover, button.link:hover { text-decoration: underline; }
@@ -202,6 +203,9 @@ td.actions { text-align: right; }
 td.actions .row { flex-wrap: nowrap; justify-content: flex-end; gap: 4px; }
 tr.sep td { background: var(--panel-2); color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; font-weight: 650; padding: 6px 12px; }
 tr.builtin td:first-child b { font-family: var(--mono); font-size: 12.5px; }
+.key-box { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; }
+.key-val { font-family: var(--mono); font-size: 12px; background: var(--panel-2); padding: 2px 7px; border-radius: 4px; border: 1px solid var(--border); user-select: all; }
+.key-copy-btn { padding: 2px 6px; height: 24px; font-size: 11.5px; display: inline-flex; align-items: center; gap: 4px; border-radius: 4px; }
 .filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
 .chip { display: inline-flex; align-items: center; gap: 6px; background: var(--accent-soft); color: var(--accent); border-radius: 14px; padding: 2px 4px 2px 10px; font-size: 12.5px; font-weight: 600; }
 .chip button { background: none; border: 0; color: inherit; cursor: pointer; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; }
@@ -272,6 +276,578 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); font-si
 .page { animation: fade .18s ease-out; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 
+/* ---------- playground ---------- */
+.play-layout { display: grid; grid-template-columns: minmax(320px, 420px) 1fr; gap: 14px; align-items: start; }
+@media (max-width: 900px) { .play-layout { grid-template-columns: 1fr; } }
+.play-card { background: var(--panel); border: 1px solid var(--border); border-radius: 9px; box-shadow: var(--shadow); overflow: hidden; display: flex; flex-direction: column; }
+.play-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 13px; background: var(--panel-2); }
+.play-body { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.play-out { min-height: 440px; background: var(--panel); border: 1px solid var(--border); border-radius: 9px; box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden; }
+.play-out-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 13px; background: var(--panel-2); }
+.play-out-content { flex: 1; padding: 14px; overflow-y: auto; max-height: 70vh; white-space: pre-wrap; font-family: var(--sans); }
+.play-out-content.mono { font-family: var(--mono); font-size: 12.5px; }
+.play-preview { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 14px; border-bottom: 1px solid var(--border); }
+.play-preview img, .play-preview video { max-width: 100%; max-height: 460px; border-radius: 8px; border: 1px solid var(--border); box-shadow: var(--shadow); }
+.play-img-attach { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.play-img-thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
+#play-image-action { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
+#play-image-action button { padding: 6px 3px; border-left: 0; border-top: 1px solid var(--border); font-family: var(--sans); font-size: 11.5px; white-space: normal; }
+#play-image-action button:nth-child(-n+3) { border-top: 0; }
+#play-image-action button:nth-child(3n+2), #play-image-action button:nth-child(3n) { border-left: 1px solid var(--border); }
+.play-mask-editor { position: relative; display: inline-block; max-width: 100%; line-height: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; }
+.play-mask-editor img { display: block; max-width: 100%; max-height: 360px; object-fit: contain; }
+.play-mask-editor canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+
+/* ---------- chat playground (gemini-style agent chat) ---------- */
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 180px);
+  min-height: 580px;
+  max-height: 860px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.chat-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-2);
+  z-index: 5;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.chat-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.chat-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.chat-history-panel {
+  position: absolute;
+  z-index: 8;
+  top: 54px;
+  right: 12px;
+  width: min(360px, calc(100% - 24px));
+  max-height: 52%;
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+.chat-history-heading { padding: 4px 8px 8px; color: var(--muted); font-size: 12px; font-weight: 650; }
+.chat-history-list { display: flex; flex-direction: column; gap: 4px; }
+.chat-history-item {
+  width: 100%; padding: 9px 10px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--text); text-align: left; cursor: pointer;
+}
+.chat-history-item:hover, .chat-history-item.active { background: var(--panel-2); }
+.chat-history-item-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.chat-history-item-time { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+.chat-pill-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.chat-pill-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 4px 10px;
+  font-size: 12.5px;
+  color: var(--text);
+  cursor: pointer;
+}
+.chat-pill-select {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 12.5px;
+  font-weight: 550;
+  outline: none;
+  cursor: pointer;
+  padding-right: 4px;
+}
+.chat-settings-panel {
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 16px;
+  animation: fade .15s ease-out;
+}
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  scroll-behavior: smooth;
+}
+.chat-welcome {
+  margin: auto;
+  max-width: 640px;
+  text-align: center;
+  padding: 24px 12px;
+}
+.chat-welcome-avatar {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 16px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--accent) 0%, #3a8bfd 100%);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(47, 191, 171, 0.25);
+}
+.chat-welcome h2 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 8px;
+  letter-spacing: -0.02em;
+}
+.chat-welcome p {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0 0 28px;
+}
+.chat-suggestions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+  text-align: left;
+}
+.chat-suggestion-chip {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  transition: all 0.15s ease;
+  width: 100%;
+}
+.chat-suggestion-chip:hover {
+  background: var(--panel-3);
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+.chat-thread {
+  max-width: 860px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.chat-msg {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  animation: fade .18s ease-out;
+}
+.chat-msg.user {
+  flex-direction: column;
+  align-items: flex-end;
+}
+.chat-msg.user .chat-user-bubble {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  padding: 11px 16px;
+  border-radius: 18px 18px 4px 18px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  word-break: break-word;
+  max-width: 82%;
+  white-space: pre-wrap;
+}
+.chat-msg.user .chat-user-images {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+.chat-msg.user .chat-user-images img {
+  max-width: 180px;
+  max-height: 180px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.chat-msg.assistant {
+  align-items: flex-start;
+}
+.chat-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent) 0%, #3a8bfd 100%);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: #fff;
+  margin-top: 3px;
+}
+.chat-avatar svg {
+  width: 18px;
+  height: 18px;
+}
+.chat-assistant-body {
+  flex: 1;
+  min-width: 0;
+}
+.chat-msg-header {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.chat-assistant-content {
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--text);
+  word-break: break-word;
+}
+.chat-assistant-content p {
+  margin: 0 0 10px;
+}
+.chat-assistant-content p:last-child {
+  margin-bottom: 0;
+}
+.chat-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 15px;
+  background: var(--accent);
+  margin-left: 3px;
+  vertical-align: middle;
+  animation: ping 1s infinite alternate;
+  border-radius: 2px;
+}
+.chat-msg-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.chat-input-container {
+  padding: 10px 20px 16px;
+  max-width: 860px;
+  width: 100%;
+  margin: 0 auto;
+  position: relative;
+}
+.chat-input-box {
+  background: var(--panel-2);
+  border: 1.5px solid var(--border);
+  border-radius: 24px;
+  padding: 8px 12px 8px 14px;
+  display: flex;
+  flex-direction: column;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.chat-input-box:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.chat-attachments-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-bottom: 8px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.chat-thumb-item {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.chat-thumb-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.chat-thumb-rm {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.65);
+  color: #fff;
+  border: 0;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  padding: 0;
+}
+.chat-file-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 30px 6px 10px;
+  max-width: 240px;
+  flex-shrink: 0;
+}
+.chat-file-icon {
+  width: 22px;
+  height: 22px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.chat-file-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+.chat-file-name {
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-file-size {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.chat-file-rm {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--panel-2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  padding: 0;
+}
+.chat-file-rm:hover {
+  background: var(--err);
+  color: #fff;
+  border-color: var(--err);
+}
+.chat-user-files {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 6px;
+  align-items: flex-end;
+}
+.chat-user-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  max-width: 320px;
+}
+.chat-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.chat-btn-attach {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: all .15s;
+  flex-shrink: 0;
+  margin-bottom: 2px;
+}
+.chat-btn-attach:hover {
+  background: var(--panel-3);
+  color: var(--text);
+}
+#chat-textarea {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  padding: 8px 4px;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+  max-height: 160px;
+  min-height: 24px;
+  outline: none;
+  color: var(--text);
+  overflow-y: auto;
+}
+.chat-btn-send {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-text);
+  border: 0;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: all .15s;
+  flex-shrink: 0;
+  margin-bottom: 2px;
+}
+.chat-btn-send:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.chat-btn-send:disabled {
+  opacity: .35;
+  cursor: default;
+  background: var(--muted);
+}
+.chat-btn-send.stop-btn {
+  background: var(--err);
+  opacity: 1;
+  cursor: pointer;
+}
+.chat-input-footer {
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--faint);
+  margin-top: 6px;
+}
+.chat-dropzone-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(11, 107, 97, 0.12);
+  backdrop-filter: blur(2px);
+  border: 2px dashed var(--accent);
+  border-radius: 14px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.dropzone-content {
+  background: var(--panel);
+  padding: 24px 36px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+}
+.dropzone-icon {
+  width: 44px;
+  height: 44px;
+  stroke: var(--accent);
+  margin: 0 auto 10px;
+}
+.dropzone-content p {
+  font-weight: 600;
+  font-size: 15px;
+  margin: 0;
+  color: var(--text);
+}
+/* Code blocks in chat */
+.code-block {
+  background: var(--side-bg);
+  color: #f0f4f6;
+  border-radius: 8px;
+  margin: 10px 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.code-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px;
+  background: rgba(255,255,255,0.06);
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--side-muted);
+}
+.code-copy-btn {
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.code-copy-btn:hover {
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+}
+.code-block pre {
+  margin: 0;
+  padding: 12px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+code.mono-inline {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--panel-2);
+  padding: 2px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
 /* ---------- narrow screens ---------- */
 @media (max-width: 860px) {
   .app { grid-template-columns: minmax(0, 1fr); }
@@ -306,6 +882,9 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); font-si
   table.resp td.cell-name > div { flex: 1; min-width: 0; }
   table.resp td.cell-status { order: -1; display: none; }
   table.resp td.cell-name .m-status { display: inline-flex; }
+  table.resp td.cell-key { grid-column: 1 / -1; }
+  table.resp td.cell-key .key-box { width: 100%; justify-content: space-between; }
+  table.resp td.cell-key .key-val { word-break: break-all; white-space: normal; }
   table.resp td.actions { grid-column: 1 / -1; }
   table.resp td.actions .row { justify-content: flex-start; flex-wrap: wrap; }
   table.resp tr.sep { display: block; padding: 6px 14px; }
@@ -330,6 +909,12 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); font-si
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4.5h-4.5"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
   <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4" fill="currentColor"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></symbol>
+  <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor"/></symbol>
+  <symbol id="i-attach" viewBox="0 0 24 24"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l7.88-7.88"/></symbol>
 </svg>
 
 <!-- login screen -->
@@ -359,6 +944,10 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); font-si
       <a href="#accounts" data-page="accounts"><svg class="i"><use href="#i-accounts"/></svg>Accounts<span class="count" id="nav-accounts"></span></a>
       <a href="#keys" data-page="keys"><svg class="i"><use href="#i-keys"/></svg>API Keys<span class="count" id="nav-keys"></span></a>
       <a href="#requests" data-page="requests"><svg class="i"><use href="#i-requests"/></svg>Requests</a>
+      <div class="navlabel">Công cụ</div>
+      <a href="#playground" data-page="playground"><svg class="i"><use href="#i-play"/></svg>Playground</a>
+      <a href="/docs" target="_blank" rel="noopener"><svg class="i"><use href="#i-doc"/></svg>Swagger UI</a>
+      <a href="/redoc" target="_blank" rel="noopener"><svg class="i"><use href="#i-doc"/></svg>ReDoc</a>
     </nav>
     <div class="side-foot">
       <div class="themes" role="group" aria-label="Giao diện">
@@ -410,7 +999,7 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); font-si
       <section class="page" id="page-accounts" hidden>
         <div class="page-head">
           <div class="grow"><h1>Accounts</h1><div class="sub">Các tài khoản muse.ai trong pool. Account hết quota sẽ tự quay lại khi hết thời gian nghỉ.</div></div>
-          <div class="tools"><button class="btn" id="acc-refresh" type="button"><svg class="i"><use href="#i-refresh"/></svg>Làm mới</button></div>
+          <div class="tools"><button class="btn primary" id="acc-new" type="button">Thêm cookies</button><button class="btn" id="acc-refresh" type="button"><svg class="i"><use href="#i-refresh"/></svg>Làm mới</button></div>
         </div>
         <div class="summary" id="acc-summary"></div>
         <div class="cards" id="accounts"></div>
@@ -419,7 +1008,7 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); font-si
       <!-- keys -->
       <section class="page" id="page-keys" hidden>
         <div class="page-head">
-          <div class="grow"><h1>API Keys</h1><div class="sub">Key cho client gọi <span class="mono">/v1/*</span>. Server chỉ lưu bản băm — key chỉ hiển thị một lần khi cấp.</div></div>
+          <div class="grow"><h1>API Keys</h1><div class="sub">Key cho client gọi <span class="mono">/v1/*</span>. Key hiển thị trực tiếp và có thể sao chép bất cứ lúc nào.</div></div>
           <div class="tools"><button class="btn primary big" id="key-new" type="button"><svg class="i"><use href="#i-plus"/></svg>Cấp API key</button></div>
         </div>
         <div class="tiles" id="key-tiles" style="margin-bottom: 12px;"></div>
@@ -427,7 +1016,7 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); font-si
           <div class="tablewrap">
             <table class="resp">
               <thead><tr>
-                <th>Name</th><th class="hide-sm">Key</th><th>Status</th><th class="num">Total</th><th class="num">24h</th><th class="num">Errors 24h</th><th>Last request</th><th class="hide-sm">Created</th><th></th>
+                <th>Name</th><th>Key</th><th>Status</th><th class="num">Total</th><th class="num">24h</th><th class="num">Errors 24h</th><th>Last request</th><th class="hide-sm">Created</th><th></th>
               </tr></thead>
               <tbody id="keys-body"></tbody>
             </table>
@@ -440,7 +1029,7 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); font-si
       <section class="page" id="page-requests" hidden>
         <div class="page-head">
           <div class="grow"><h1>Requests</h1><div class="sub">Nhật ký từng request tới <span class="mono">/v1/*</span>. Bấm một dòng để xem chi tiết.</div></div>
-          <div class="tools"><label class="chk"><input type="checkbox" id="f-live" checked> <span class="livedot on" id="live-dot"></span> Tự động làm mới</label></div>
+          <div class="tools"><button class="btn icon-only" id="req-refresh" type="button" title="Tải lại dữ liệu" aria-label="Tải lại dữ liệu"><svg class="i"><use href="#i-refresh"/></svg></button><label class="chk"><input type="checkbox" id="f-live" checked> <span class="livedot on" id="live-dot"></span> Tự động làm mới</label></div>
         </div>
         <div class="filters">
           <select id="f-key" aria-label="Key"></select>
@@ -473,6 +1062,336 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); font-si
           </div>
         </div>
       </section>
+
+      <!-- playground -->
+      <section class="page" id="page-playground" hidden>
+        <div class="page-head">
+          <div class="grow">
+            <h1>Playground</h1>
+            <div class="sub">Test trực tiếp các API Chat, Image, Image Edits, Video của muse2api.</div>
+          </div>
+          <div class="tools">
+            <div class="seg" id="play-mode" role="group" aria-label="Loại API">
+              <button type="button" data-m="chat" aria-pressed="true">Chat</button>
+              <button type="button" data-m="image" aria-pressed="false">Image</button>
+              <button type="button" data-m="video" aria-pressed="false">Video</button>
+            </div>
+          </div>
+        </div>
+
+                <!-- Chat Mode View (Gemini Style) -->
+        <div id="play-chat-view">
+          <div class="chat-container" id="chat-container">
+            <!-- Top bar -->
+            <div class="chat-topbar">
+              <div class="chat-topbar-left">
+                <div class="chat-pill-group">
+                  <label class="chat-pill-label" title="Chọn Model">
+                    <svg class="i"><use href="#i-sparkle"/></svg>
+                    <select id="chat-model-select" class="chat-pill-select"></select>
+                  </label>
+                  <label class="chat-pill-label" title="Chọn Account xử lý (Tùy chọn)">
+                    <svg class="i"><use href="#i-accounts"/></svg>
+                    <select id="chat-account-select" class="chat-pill-select"></select>
+                  </label>
+                </div>
+                <button type="button" class="btn sm ghost" id="chat-settings-btn" title="Cài đặt Chat (System Prompt, Streaming)">
+                  <svg class="i"><use href="#i-auto"/></svg> Cài đặt
+                </button>
+              </div>
+              <div class="chat-topbar-right">
+                <button type="button" class="btn sm ghost" id="chat-history-btn" aria-expanded="false">Lịch sử</button>
+                <button type="button" class="btn sm ghost" id="chat-clear-btn" title="Cuộc trò chuyện mới">
+                  <svg class="i"><use href="#i-plus"/></svg> Cuộc trò chuyện mới
+                </button>
+              </div>
+            </div>
+
+            <div id="chat-history-panel" class="chat-history-panel" hidden>
+              <div class="chat-history-heading">Các cuộc trò chuyện gần đây</div>
+              <div id="chat-history-list" class="chat-history-list"></div>
+            </div>
+
+            <!-- Settings dropdown panel -->
+            <div class="chat-settings-panel" id="chat-settings-panel" hidden>
+              <div class="row" style="justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <b style="font-size: 13px;">Cài đặt hội thoại</b>
+                <button type="button" class="btn sm icon-only ghost" id="chat-settings-close"><svg class="i"><use href="#i-x"/></svg></button>
+              </div>
+              <label class="f">System Prompt <span class="hint">hướng dẫn hành vi của trợ lý</span>
+                <input type="text" id="chat-system-prompt" placeholder="Ví dụ: You are a helpful assistant.">
+              </label>
+              <label class="chk" style="margin-top: 8px;">
+                <input type="checkbox" id="chat-stream-toggle" checked> Streaming response (SSE - hiển thị chữ chạy theo thời gian thực)
+              </label>
+            </div>
+
+            <!-- Messages Thread -->
+            <div class="chat-messages" id="chat-messages">
+              <!-- Welcome screen when thread is empty -->
+              <div class="chat-welcome" id="chat-welcome">
+                <div class="chat-welcome-avatar">
+                  <svg class="i" style="width:26px; height:26px;"><use href="#i-sparkle"/></svg>
+                </div>
+                <h2>Xin chào, tôi có thể giúp gì cho bạn?</h2>
+                <p>Nhập câu hỏi để bắt đầu trò chuyện hoặc kéo thả hình ảnh vào đây.</p>
+                <div class="chat-suggestions">
+                  <button type="button" class="chat-suggestion-chip" data-prompt="Viết một đoạn code Python thực hiện phân tích dữ liệu đơn giản">
+                    <span class="chip-icon">💻</span>
+                    <span>Viết code Python phân tích dữ liệu</span>
+                  </button>
+                  <button type="button" class="chat-suggestion-chip" data-prompt="Lên ý tưởng kịch bản video ngắn thu hút người xem">
+                    <span class="chip-icon">💡</span>
+                    <span>Ý tưởng kịch bản video ngắn</span>
+                  </button>
+                  <button type="button" class="chat-suggestion-chip" data-prompt="Giải thích nguyên lý hoạt động của Large Language Models (LLM) một cách dễ hiểu">
+                    <span class="chip-icon">🧠</span>
+                    <span>Giải thích nguyên lý của LLM</span>
+                  </button>
+                  <button type="button" class="chat-suggestion-chip" data-prompt="Tóm tắt các mẹo quan trọng cần lưu ý khi viết prompt cho AI">
+                    <span class="chip-icon">📝</span>
+                    <span>Mẹo viết prompt hiệu quả cho AI</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Message turn bubbles -->
+              <div class="chat-thread" id="chat-thread" hidden></div>
+            </div>
+
+            <!-- Drag & Drop overlay -->
+            <div class="chat-dropzone-overlay" id="chat-dropzone-overlay" hidden>
+              <div class="dropzone-content">
+                <svg class="dropzone-icon i" style="width:40px; height:40px;"><use href="#i-attach"/></svg>
+                <p>Thả tệp vào đây để đính kèm</p>
+              </div>
+            </div>
+
+            <!-- Bottom Floating Input Area -->
+            <div class="chat-input-container">
+              <div class="chat-input-box" id="chat-input-box">
+                <!-- Attachments preview row -->
+                <div class="chat-attachments-row" id="chat-attachments-row" hidden></div>
+
+                <div class="chat-input-row">
+                  <input type="file" id="chat-file-input" multiple hidden>
+                  <button type="button" class="chat-btn-attach" id="chat-attach-btn" title="Đính kèm tệp (hoặc kéo thả, dán ảnh Ctrl+V)">
+                    <svg class="i"><use href="#i-attach"/></svg>
+                  </button>
+
+                  <textarea id="chat-textarea" rows="1" placeholder="Hỏi bất cứ điều gì hoặc kéo thả tệp vào đây..." autocomplete="off"></textarea>
+
+                  <button type="button" class="chat-btn-send" id="chat-send-btn" title="Gửi tin nhắn (Enter)" disabled>
+                    <svg class="i" id="chat-send-icon"><use href="#i-send"/></svg>
+                    <svg class="i" id="chat-stop-icon" hidden><use href="#i-stop"/></svg>
+                  </button>
+                </div>
+              </div>
+              <div class="chat-input-footer">
+                <span>Nhấn <b>Enter</b> để gửi, <b>Shift + Enter</b> để xuống dòng. Hỗ trợ kéo thả hoặc dán ảnh từ clipboard (Ctrl+V).</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Media Mode View (Image & Video) -->
+        <div id="play-media-view" hidden>
+          <div class="play-layout">
+            <div class="play-card">
+              <div class="play-head">
+                <span id="play-media-title">Cấu hình</span>
+                <span class="mono muted" id="play-media-endpoint">POST /v1/images/generations</span>
+              </div>
+              <div class="play-body">
+                <label class="f">Account <span class="hint">tùy chọn (để trống: tự động)</span>
+                  <select id="play-media-account"></select>
+                </label>
+                <label class="f">Model
+                  <select id="play-media-model"></select>
+                </label>
+
+                <!-- image specific fields -->
+                <div id="play-fields-image" style="display:flex; flex-direction:column; gap:10px;">
+                  <div class="seg" id="play-image-action" role="group" aria-label="Tác vụ ảnh">
+                    <button type="button" data-action="generate" aria-pressed="true">Tạo ảnh</button>
+                    <button type="button" data-action="edit" aria-pressed="false">Sửa ảnh</button>
+                    <button type="button" data-action="extract-outfit" aria-pressed="false">Tách trang phục</button>
+                    <button type="button" data-action="try-on" aria-pressed="false">Thử trang phục</button>
+                    <button type="button" data-action="remove-object" aria-pressed="false">Xóa vật thể</button>
+                    <button type="button" data-action="add-accessory" aria-pressed="false">Thêm phụ kiện</button>
+                    <button type="button" data-action="replace-background" aria-pressed="false">Thay bối cảnh</button>
+                  </div>
+                  <div id="play-image-edit-fields" style="display:flex; flex-direction:column; gap:10px;" hidden>
+                    <label class="f">Ảnh cần sửa <span class="hint">Muse dùng ảnh làm tham chiếu để tạo ảnh mới</span>
+                      <input type="file" id="play-edit-image-file" accept="image/*" hidden>
+                      <div class="play-img-attach" id="play-edit-dropzone">
+                        <button type="button" class="btn sm" id="play-edit-image-btn">Chọn ảnh…</button>
+                        <img id="play-edit-image-thumb" class="play-img-thumb" hidden alt="Ảnh cần sửa">
+                        <span id="play-edit-image-name" class="muted"></span>
+                        <button type="button" class="btn sm ghost" id="play-edit-image-remove" hidden>Xóa ảnh</button>
+                      </div>
+                    </label>
+                    <p class="hint" style="margin:0">Nhập hướng dẫn sửa ảnh vào ô Prompt bên dưới. Mask/inpainting vùng chọn chưa được hỗ trợ.</p>
+                  </div>
+                  <div id="play-outfit-fields" style="display:flex; flex-direction:column; gap:10px;" hidden>
+                    <div id="play-extract-outfit-fields" hidden>
+                      <label class="f">Ảnh nhân vật cần tách trang phục
+                        <input type="file" id="play-outfit-source-file" accept="image/*" hidden>
+                        <div class="play-img-attach" id="play-outfit-source-dropzone">
+                          <button type="button" class="btn sm" id="play-outfit-source-btn">Chọn ảnh…</button>
+                          <img id="play-outfit-source-thumb" class="play-img-thumb" hidden alt="Ảnh nguồn tách trang phục">
+                          <span id="play-outfit-source-name" class="muted"></span>
+                          <button type="button" class="btn sm ghost" id="play-outfit-source-remove" hidden>Xóa ảnh</button>
+                        </div>
+                      </label>
+                      <p class="hint" style="margin:0">Chỉ giữ lại quần áo trên nền trắng; loại bỏ người, phụ kiện và giày dép.</p>
+                    </div>
+                    <div id="play-try-on-fields" style="display:flex; flex-direction:column; gap:10px;" hidden>
+                      <label class="f">Ảnh 1 · Nhân vật
+                        <input type="file" id="play-try-character-file" accept="image/*" hidden>
+                        <div class="play-img-attach" id="play-try-character-dropzone">
+                          <button type="button" class="btn sm" id="play-try-character-btn">Chọn ảnh nhân vật…</button>
+                          <img id="play-try-character-thumb" class="play-img-thumb" hidden alt="Ảnh nhân vật">
+                          <span id="play-try-character-name" class="muted"></span>
+                          <button type="button" class="btn sm ghost" id="play-try-character-remove" hidden>Xóa ảnh</button>
+                        </div>
+                      </label>
+                      <label class="f">Ảnh 2 · Trang phục
+                        <input type="file" id="play-try-outfit-file" accept="image/*" hidden>
+                        <div class="play-img-attach" id="play-try-outfit-dropzone">
+                          <button type="button" class="btn sm" id="play-try-outfit-btn">Chọn ảnh trang phục…</button>
+                          <img id="play-try-outfit-thumb" class="play-img-thumb" hidden alt="Ảnh trang phục">
+                          <span id="play-try-outfit-name" class="muted"></span>
+                          <button type="button" class="btn sm ghost" id="play-try-outfit-remove" hidden>Xóa ảnh</button>
+                        </div>
+                      </label>
+                      <p class="hint" style="margin:0">Giữ nguyên nhận diện nhân vật, thay trang phục theo ảnh thứ hai.</p>
+                    </div>
+                  </div>
+                  <div id="play-remove-object-fields" style="display:flex; flex-direction:column; gap:10px;" hidden>
+                    <label class="f">Ảnh gốc
+                      <input type="file" id="play-remove-image-file" accept="image/*" hidden>
+                      <div class="play-img-attach">
+                        <button type="button" class="btn sm" id="play-remove-image-btn">Chọn ảnh…</button>
+                        <span id="play-remove-image-name" class="muted"></span>
+                        <button type="button" class="btn sm ghost" id="play-remove-image-clear" hidden>Xóa ảnh</button>
+                      </div>
+                    </label>
+                    <div id="play-remove-mask-editor" class="play-mask-editor" hidden>
+                      <img id="play-remove-image-preview" alt="Ảnh gốc để đánh dấu vùng cần xóa">
+                      <canvas id="play-remove-mask-canvas" aria-label="Vẽ vùng cần xóa"></canvas>
+                    </div>
+                    <label class="f">Cỡ cọ vùng đánh dấu
+                      <input type="range" id="play-remove-brush-size" min="2" max="20" value="8">
+                    </label>
+                    <div class="row" style="gap:8px">
+                      <button type="button" class="btn sm" id="play-remove-clear-mask">Xóa nét đánh dấu</button>
+                    </div>
+                    <p class="hint" style="margin:0">Vẽ đỏ lên vật thể cần xóa, hoặc mô tả vật thể ở ô hướng dẫn bên dưới. Canvas gửi vùng tô thành mask tham chiếu cho model; đây không phải inpainting chính xác từng pixel.</p>
+                  </div>
+                  <div id="play-add-accessory-fields" style="display:flex; flex-direction:column; gap:10px;" hidden>
+                    <label class="f">Ảnh gốc
+                      <input type="file" id="play-accessory-base-file" accept="image/*" hidden>
+                      <div class="play-img-attach" id="play-accessory-base-dropzone">
+                        <button type="button" class="btn sm" id="play-accessory-base-btn">Chọn ảnh gốc…</button>
+                        <img id="play-accessory-base-thumb" class="play-img-thumb" hidden alt="Ảnh gốc">
+                        <span id="play-accessory-base-name" class="muted"></span>
+                        <button type="button" class="btn sm ghost" id="play-accessory-base-remove" hidden>Xóa ảnh</button>
+                      </div>
+                    </label>
+                    <label class="f">Ảnh 2 · Phụ kiện cần thêm
+                      <input type="file" id="play-accessory-ref-file" accept="image/*" hidden>
+                      <div class="play-img-attach" id="play-accessory-ref-dropzone">
+                        <button type="button" class="btn sm" id="play-accessory-ref-btn">Chọn ảnh phụ kiện…</button>
+                        <img id="play-accessory-ref-thumb" class="play-img-thumb" hidden alt="Ảnh phụ kiện">
+                        <span id="play-accessory-ref-name" class="muted"></span>
+                        <button type="button" class="btn sm ghost" id="play-accessory-ref-remove" hidden>Xóa ảnh</button>
+                      </div>
+                    </label>
+                  </div>
+                  <div id="play-replace-background-fields" style="display:flex; flex-direction:column; gap:10px;" hidden>
+                    <label class="f">Ảnh 1 · Ảnh cần sửa
+                      <input type="file" id="play-background-image-file" accept="image/*" hidden>
+                      <div class="play-img-attach" id="play-background-image-dropzone">
+                        <button type="button" class="btn sm" id="play-background-image-btn">Chọn ảnh cần sửa…</button>
+                        <img id="play-background-image-thumb" class="play-img-thumb" hidden alt="Ảnh gốc thay bối cảnh">
+                        <span id="play-background-image-name" class="muted"></span>
+                        <button type="button" class="btn sm ghost" id="play-background-image-remove" hidden>Xóa ảnh</button>
+                      </div>
+                    </label>
+                    <label class="f">Ảnh 2 · Bối cảnh tham chiếu
+                      <input type="file" id="play-background-ref-file" accept="image/*" hidden>
+                      <div class="play-img-attach" id="play-background-ref-dropzone">
+                        <button type="button" class="btn sm" id="play-background-ref-btn">Chọn ảnh bối cảnh…</button>
+                        <img id="play-background-ref-thumb" class="play-img-thumb" hidden alt="Bối cảnh tham chiếu">
+                        <span id="play-background-ref-name" class="muted"></span>
+                        <button type="button" class="btn sm ghost" id="play-background-ref-remove" hidden>Xóa ảnh</button>
+                      </div>
+                    </label>
+                  </div>
+                  <label class="f">Kích thước
+                    <select id="play-img-size">
+                      <option value="1024x1024" selected>1024x1024 (Vuông 1:1)</option>
+                      <option value="1280x720">1280x720 (Ngang 16:9)</option>
+                      <option value="720x1280">720x1280 (Dọc 9:16)</option>
+                    </select>
+                  </label>
+                  <label class="chk">
+                    <input type="checkbox" id="play-img-transparent"> Xóa phông nền (transparent background)
+                  </label>
+                </div>
+
+                <!-- video specific fields -->
+                <div id="play-fields-video" style="display:flex; flex-direction:column; gap:10px;" hidden>
+                  <label class="f">Thời lượng
+                    <select id="play-vid-duration">
+                      <option value="5" selected>5 giây</option>
+                      <option value="10">10 giây</option>
+                    </select>
+                  </label>
+                  <label class="f">First frame (Ảnh đầu) <span class="hint">tùy chọn (image-to-video)</span>
+                    <div class="play-img-attach">
+                      <input type="file" id="play-vid-file" accept="image/*" style="display:none">
+                      <button type="button" class="btn sm" id="play-vid-file-btn">Chọn ảnh…</button>
+                      <img id="play-vid-thumb" class="play-img-thumb" hidden alt="First frame">
+                      <button type="button" class="btn sm ghost" id="play-vid-rm-img" hidden>Xóa ảnh</button>
+                    </div>
+                  </label>
+                </div>
+
+                <!-- prompt input -->
+                <label class="f"><span id="play-media-prompt-label">Prompt</span>
+                  <textarea id="play-media-prompt" rows="5" placeholder="Nhập prompt ở đây… (Ctrl+Enter để gửi)"></textarea>
+                </label>
+
+                <div class="row" style="margin-top: 4px;">
+                  <button type="button" class="btn primary big" id="play-media-submit" style="flex: 1; justify-content: center;">Gửi request</button>
+                  <button type="button" class="btn danger" id="play-media-cancel" hidden>Hủy</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- output preview -->
+            <div class="play-out">
+              <div class="play-out-head">
+                <div class="row" style="gap: 8px;">
+                  <span class="pulse" id="play-status-dot"></span>
+                  <span id="play-status-text" class="muted">Sẵn sàng</span>
+                  <span id="play-time" class="mono muted"></span>
+                  <span id="play-account-used" class="badge plain b-info" hidden></span>
+                </div>
+                <div class="row" style="gap: 6px;">
+                  <button type="button" class="btn sm ghost" id="play-copy-btn" title="Sao chép nội dung">Sao chép</button>
+                  <button type="button" class="btn sm ghost" id="play-view-toggle">Xem JSON</button>
+                </div>
+              </div>
+              <div class="play-preview" id="play-media-preview" hidden></div>
+              <div class="play-out-content" id="play-output">Chưa có kết quả. Nhập prompt và bấm “Gửi request” để thử nghiệm.</div>
+              <pre class="play-out-content mono" id="play-raw-json" hidden style="margin: 0;"></pre>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 </div>
@@ -492,11 +1411,12 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); font-si
   const STORE = "muse2api.adminKey";
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
-  const PAGES = {overview: "Tổng quan", accounts: "Accounts", keys: "API Keys", requests: "Requests"};
+  const PAGES = {overview: "Tổng quan", accounts: "Accounts", keys: "API Keys", requests: "Requests", playground: "Playground"};
   const state = {
     page: "overview", window: "24h", offset: 0, limit: 50,
     accounts: [], keys: [], builtin: [], capabilities: {}, timer: null, modalOpen: false,
   };
+  window.__state = state;
 
   // ---- helpers ----
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({
@@ -505,12 +1425,54 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); font-si
     get: (k) => { try { return localStorage.getItem(k) || ""; } catch { return ""; } },
     set: (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch {} },
   };
+  const PLAY_THREADS_KEY = "muse2api.playground.threads";
+  const PLAY_ACTIVE_THREAD_KEY = "muse2api.playground.activeThread";
+  const newThreadId = () => globalThis.crypto?.randomUUID?.() || `thread_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  function readPlayThreads() {
+    try {
+      const parsed = JSON.parse(store.get(PLAY_THREADS_KEY) || "[]");
+      return Array.isArray(parsed) ? parsed.filter(t => t && typeof t.id === "string" && Array.isArray(t.messages)) : [];
+    } catch { return []; }
+  }
+  function persistPlayThreads() {
+    const play = state.play;
+    if (!play?.threads || !play.conversationId) return;
+    const current = play.threads.find(t => t.id === play.conversationId);
+    if (!current) return;
+    current.messages = play.chatMessages;
+    current.updatedAt = Date.now();
+    const firstUser = current.messages.find(m => m.role === "user");
+    if (firstUser && (!current.title || current.title === "Cuộc trò chuyện mới")) {
+      current.title = (firstUser.content || firstUser.attachments?.[0]?.name || "Cuộc trò chuyện có tệp").slice(0, 72);
+    }
+    const safeThreads = [...play.threads].sort((a,b) => b.updatedAt - a.updatedAt).slice(0, 10).map(thread => ({
+      id: thread.id, title: thread.title || "Cuộc trò chuyện mới", updatedAt: thread.updatedAt || Date.now(),
+      messages: (thread.messages || []).slice(-40).map(m => ({
+        role: m.role, content: String(m.content || "").slice(-3000), model: m.model,
+        time: m.time, ms: m.ms, error: Boolean(m.error),
+        attachments: (m.attachments || []).map(a => ({name:a.name,size:a.size,type:a.type,isImage:Boolean(a.isImage)})),
+      })),
+    }));
+    store.set(PLAY_THREADS_KEY, JSON.stringify(safeThreads));
+    store.set(PLAY_ACTIVE_THREAD_KEY, play.conversationId);
+  }
+  function renderPlayThreadHistory() {
+    const list = $("#chat-history-list");
+    if (!list || !state.play?.threads) return;
+    const threads = [...state.play.threads].filter(t => t.messages?.length).sort((a,b) => b.updatedAt - a.updatedAt);
+    list.innerHTML = threads.length ? threads.map(t => `
+      <button type="button" class="chat-history-item${t.id === state.play.conversationId ? " active" : ""}" data-thread-id="${esc(t.id)}">
+        <span class="chat-history-item-title">${esc(t.title || "Cuộc trò chuyện mới")}</span>
+        <span class="chat-history-item-time">${esc(ago((t.updatedAt || Date.now()) / 1000))}</span>
+      </button>`).join("") : '<div class="muted" style="padding:8px">Chưa có lịch sử trò chuyện</div>';
+  }
   const getKey = () => store.get(STORE);
   const setKey = (k) => store.set(STORE, k);
   const now = () => Date.now() / 1000;
   const fmtNum = (n) => n == null ? "–" : Number(n).toLocaleString("en-US");
   const fmtMs = (ms) => ms == null ? "–" : ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(ms < 10000 ? 2 : 1)} s`;
   const fmtPct = (r) => `${(r * 100).toFixed(r && r < 0.1 ? 2 : 1)}%`;
+  const fmtBytes = (b) => b == null || isNaN(b) ? "–" : b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`;
   const icon = (name) => `<svg class="i"><use href="#i-${name}"/></svg>`;
   function ago(ts) {
     if (!ts) return "chưa dùng";
@@ -565,6 +1527,31 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); font-si
     toastTimer = setTimeout(() => { t.hidden = true; }, 2800);
   }
 
+  async function copyText(text) {
+    if (!text) return false;
+    let ok = false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        ok = true;
+      }
+    } catch {}
+    if (!ok) {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        ok = document.execCommand("copy");
+        ta.remove();
+      } catch {}
+    }
+    return ok;
+  }
+
   class AuthError extends Error {}
   async function api(path, opts = {}) {
     const headers = {Authorization: `Bearer ${getKey()}`};
@@ -613,19 +1600,34 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); font-si
         if (opener && opener.focus && document.contains(opener)) opener.focus();
         resolve(v);
       };
-      const fire = (a) => {
+      let busy = false;
+      const fire = async (a) => {
+        if (busy) return;
+        const showError = (message) => {
+          let el = $("#modal-err");
+          if (!el) { el = document.createElement("div"); el.id = "modal-err"; el.className = "ferr"; el.setAttribute("role", "alert"); $("#modal-body").appendChild(el); }
+          el.textContent = message;
+        };
+        try {
         const v = a.collect ? a.collect() : a.value;
         const err = a.check && a.check(v);
         if (err) {
-          let el = $("#modal-err");
-          if (!el) { el = document.createElement("div"); el.id = "modal-err"; el.className = "ferr"; el.setAttribute("role", "alert"); $("#modal-body").appendChild(el); }
-          el.textContent = err;
+          showError(err);
           return;
         }
+        if (a.submit) {
+          busy = true;
+          for (const b of box.children) b.disabled = true;
+          const button = box.lastElementChild, label = button.textContent;
+          button.textContent = "Đang lưu…";
+          try { await a.submit(v); }
+          finally { busy = false; for (const b of box.children) b.disabled = false; button.textContent = label; }
+        }
         close(v);
+        } catch (err) { showError(err.message || "Không thể lưu. Vui lòng thử lại."); }
       };
       const onKey = (e) => {
-        if (e.key === "Escape" && cancellable) { e.preventDefault(); close(null); }
+        if (e.key === "Escape" && cancellable && !busy) { e.preventDefault(); close(null); }
         else if (e.key === "Enter" && e.target.tagName === "INPUT" && e.target.type !== "checkbox") {
           const primary = actions.find((a) => a.primary);
           if (primary) { e.preventDefault(); fire(primary); }
@@ -638,7 +1640,7 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); font-si
           else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
         }
       };
-      const onBackdrop = (e) => { if (e.target === $("#overlay") && cancellable) close(null); };
+      const onBackdrop = (e) => { if (e.target === $("#overlay") && cancellable && !busy) close(null); };
       for (const a of actions) {
         const b = document.createElement("button");
         b.type = "button";
@@ -774,9 +1776,92 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); font-si
     const list = [...state.accounts].sort((a, b) => (order[accState(a, t).key] - order[accState(b, t).key])
       || (a.label || a.id).localeCompare(b.label || b.id));
     $("#accounts").innerHTML = list.map(accountCard).join("")
-      || `<div class="panel empty">Chưa có account nào. Thêm account bằng <span class="mono">POST /admin/accounts</span> hoặc script import cookies.</div>`;
+      || `<div class="panel empty">Chưa có account nào. Bấm “Thêm cookies” để thêm tài khoản muse.ai.</div>`;
   }
   async function loadAccountsPage() { await loadAccounts(); renderAccounts(); }
+
+  function parseAccountCookies(raw) {
+    raw = raw.trim();
+    if (!raw) throw new Error("Vui lòng dán cookies.");
+    const cookies = Object.create(null), cookie_expires = Object.create(null);
+    const required = ["hatch_sess", "hatch_gw", "hatch_vml", "hatch_native_auth_device"];
+    const put = (name, value, exp) => {
+      if (typeof name !== "string" || !name.trim() || typeof value !== "string") return;
+      cookies[name.trim()] = value;
+      if (Number.isFinite(exp) && exp > 0) cookie_expires[name.trim()] = Math.floor(exp);
+    };
+    if (raw.startsWith("{") || raw.startsWith("[")) {
+      let data;
+      try { data = JSON.parse(raw); } catch { throw new Error("JSON cookies không hợp lệ."); }
+      const queue = [data];
+      while (queue.length) {
+        const curr = queue.shift();
+        if (!curr || typeof curr !== "object") continue;
+        if (Array.isArray(curr)) {
+          for (const item of curr) {
+            if (!item || typeof item !== "object") continue;
+            if (typeof item.name === "string" && typeof item.value === "string") {
+              if (item.domain && !/(^|\.)muse\.ai$/i.test(item.domain)) continue;
+              put(item.name, item.value, item.expirationDate);
+            } else {
+              queue.push(item);
+            }
+          }
+        } else {
+          if (typeof curr.cookie === "string" || typeof curr.cookies === "string") {
+            const str = curr.cookie || curr.cookies;
+            for (const part of str.replace(/^cookie\s*:\s*/i, "").split(";")) {
+              const pos = part.indexOf("=");
+              if (pos >= 1) put(part.slice(0, pos).trim(), part.slice(pos + 1).trim());
+            }
+          }
+          if (typeof curr.name === "string" && typeof curr.value === "string") {
+            if (!curr.domain || /(^|\.)muse\.ai$/i.test(curr.domain)) {
+              put(curr.name, curr.value, curr.expirationDate);
+            }
+          }
+          const entries = Object.entries(curr);
+          if (entries.some(([k]) => required.includes(k.trim()))) {
+            for (const [k, v] of entries) {
+              if (typeof v === "string") put(k, v);
+            }
+          }
+          if (curr.cookies && typeof curr.cookies === "object") queue.unshift(curr.cookies);
+          for (const [k, v] of entries) {
+            if (k !== "cookies" && v && typeof v === "object") queue.push(v);
+          }
+        }
+        if (required.every((name) => cookies[name])) break;
+      }
+    } else {
+      for (const part of raw.replace(/^cookie\s*:\s*/i, "").split(";")) {
+        if (!part.trim()) continue;
+        const pos = part.indexOf("=");
+        if (pos < 1) throw new Error("Cookie header cần có dạng name=value; name2=value2.");
+        put(part.slice(0, pos).trim(), part.slice(pos + 1).trim());
+      }
+    }
+    const missing = required.filter((name) => !cookies[name]);
+    if (missing.length) throw new Error(`Thiếu cookies bắt buộc: ${missing.join(", ")}`);
+    return {cookies, cookie_expires};
+  }
+
+  $("#acc-new").addEventListener("click", () => guarded(async () => {
+    const saved = await modal({
+      title: "Thêm tài khoản bằng cookies", wide: true,
+      body: `<p class="muted">Dán cookies từ trình duyệt đã đăng nhập muse.ai. Hỗ trợ Cookie header, JSON object hoặc JSON array từ tiện ích xuất cookies.</p>
+        <label class="f">Tên tài khoản <span class="hint">không bắt buộc</span><input id="ac-name" type="text" maxlength="100" autocomplete="off" placeholder="Ví dụ: Muse cá nhân"></label>
+        <label class="f">Cookies<textarea id="ac-cookies" rows="9" class="mono" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="hatch_sess=...; hatch_gw=...; hatch_vml=...; hatch_native_auth_device=..."></textarea></label>
+        <p class="hint">Cần đủ hatch_sess, hatch_gw, hatch_vml, hatch_native_auth_device. Lưu thành công chỉ xác nhận đã nhập; phiên đăng nhập sẽ được kiểm tra khi sử dụng.</p>
+        <label class="chk"><input id="ac-enabled" type="checkbox" checked>Bật tài khoản sau khi lưu</label>`,
+      actions: [{label: "Huỷ", value: null}, {label: "Lưu tài khoản", primary: true, cls: "primary",
+        collect: () => ({label: $("#ac-name").value.trim(), enabled: $("#ac-enabled").checked, ...parseAccountCookies($("#ac-cookies").value)}),
+        submit: (body) => api("/admin/accounts", {method: "POST", body})}],
+    });
+    if (!saved) return;
+    toast("Đã thêm tài khoản");
+    await loadAccountsPage();
+  }));
 
   $("#accounts").addEventListener("change", (e) => {
     const input = e.target.closest("input[data-act=toggle]");
@@ -967,37 +2052,61 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); font-si
       tile("Lỗi 24h", fmtNum(err24), req24 ? `${fmtPct(err24 / req24)} số request` : "–", err24 && err24 / req24 >= 0.1 ? "bad" : ""),
     ].join("");
     const statusBadgeK = (k) => k.revoked ? `<span class="badge b-err">đã thu hồi</span>` : `<span class="badge b-ok">hoạt động</span>`;
-    const rows = state.keys.map((k) => `<tr class="click" data-id="${esc(k.id)}" tabindex="0" title="Xem requests của ${esc(k.name)}">
+    const rows = state.keys.map((k) => {
+      const displayKey = k.key || (k.prefix ? `${k.prefix}…` : "–");
+      const hasKey = Boolean(k.key || k.prefix);
+      return `<tr class="click" data-id="${esc(k.id)}" tabindex="0" title="Xem requests của ${esc(k.name)}">
         <td class="cell-name"><div><b>${esc(k.name)}</b>${k.note ? `<div class="sub" title="${esc(k.note)}">${esc(k.note)}</div>` : ""}</div><span class="m-status">${statusBadgeK(k)}</span></td>
-        <td class="mono hide-sm" data-label="Key">${esc(k.prefix)}…</td>
+        <td class="cell-key" data-label="Key">
+          <div class="key-box">
+            <span class="key-val" title="${esc(displayKey)}">${esc(displayKey)}</span>
+            ${hasKey ? `<button class="btn sm key-copy-btn" type="button" data-act="copy" data-key="${esc(k.key || k.prefix)}" title="Sao chép key" aria-label="Sao chép key">${icon("copy")}Sao chép</button>` : ""}
+          </div>
+        </td>
         <td class="cell-status" data-label="Status">${statusBadgeK(k)}</td>
         ${usageCells(k.usage)}
         <td class="hide-sm" data-label="Created" title="${esc(fullTime(k.created_at))}">${esc(ago(k.created_at))}</td>
         <td class="actions"><div class="row">
-          <button class="btn sm" type="button" data-act="edit">Đổi tên</button>
+          <button class="btn sm" type="button" data-act="edit">Chỉnh sửa</button>
           <button class="btn sm" type="button" data-act="${k.revoked ? "unrevoke" : "revoke"}">${k.revoked ? "Khôi phục" : "Thu hồi"}</button>
           <button class="btn sm danger" type="button" data-act="delete">Xoá</button>
         </div></td>
-      </tr>`).join("") || `<tr><td colspan="9" class="empty" style="grid-column:1/-1">Chưa có key nào. Bấm <b>Cấp API key</b> để tạo key đầu tiên.</td></tr>`;
-    const builtin = state.builtin.map((b) => `<tr class="click builtin" data-id="${esc(b.id)}" tabindex="0" title="Xem requests của ${esc(b.name)}">
+      </tr>`;
+    }).join("") || `<tr><td colspan="9" class="empty" style="grid-column:1/-1">Chưa có key nào. Bấm <b>Cấp API key</b> để tạo key đầu tiên.</td></tr>`;
+    const builtin = state.builtin.map((b) => {
+      const displayKey = b.key || "env";
+      return `<tr class="click builtin" data-id="${esc(b.id)}" tabindex="0" title="Xem requests của ${esc(b.name)}">
         <td class="cell-name"><div><b>${esc(b.name)}</b><div class="sub">${esc(BUILTIN_NOTE[b.id] || "")}</div></div><span class="m-status"><span class="badge b-mute">có sẵn</span></span></td>
-        <td class="mono hide-sm muted" data-label="Key">env</td>
+        <td class="cell-key" data-label="Key">
+          <div class="key-box">
+            <span class="key-val" title="${esc(displayKey)}">${esc(displayKey)}</span>
+            ${b.key ? `<button class="btn sm key-copy-btn" type="button" data-act="copy" data-key="${esc(b.key)}" title="Sao chép key" aria-label="Sao chép key">${icon("copy")}Sao chép</button>` : ""}
+          </div>
+        </td>
         <td class="cell-status" data-label="Status"><span class="badge b-mute">có sẵn</span></td>
         ${usageCells(b.usage)}
         <td class="hide-sm muted" data-label="Created">–</td>
         <td class="actions muted" style="font-size:12px">chỉ đọc</td>
-      </tr>`).join("");
+      </tr>`;
+    }).join("");
     $("#keys-body").innerHTML = rows + (builtin ? `<tr class="sep"><td colspan="9">Định danh có sẵn</td></tr>${builtin}` : "");
   }
 
   async function keyForm(title, k = {}, submit = "Lưu") {
+    const isNew = !k.id;
     return modal({
       title,
       body: `<label class="f">Tên<input type="text" id="kf-name" maxlength="100" value="${esc(k.name || "")}" placeholder="vd. alice-laptop, n8n-prod" autocomplete="off"></label>
+        <label class="f">API Key <span class="hint">${isNew ? "để trống để tự sinh ngẫu nhiên" : "sửa key nếu muốn đổi key mới"}</span><input type="text" id="kf-key" maxlength="128" value="${esc(k.key || "")}" placeholder="m2a-... (tự động tạo nếu để trống)" class="mono" autocomplete="off"></label>
         <label class="f">Ghi chú <span class="hint">không bắt buộc — ai dùng, dùng cho việc gì</span><input type="text" id="kf-note" maxlength="500" value="${esc(k.note || "")}" autocomplete="off"></label>`,
       actions: [{label: "Huỷ", value: null},
         {label: submit, primary: true, cls: "primary",
-         collect: () => ({name: $("#kf-name").value.trim(), note: $("#kf-note").value.trim()}),
+         collect: () => {
+           const kv = $("#kf-key") ? $("#kf-key").value.trim() : "";
+           const res = {name: $("#kf-name").value.trim(), note: $("#kf-note").value.trim()};
+           if (kv) res.key = kv;
+           return res;
+         },
          check: (v) => v.name ? "" : "Cần nhập tên cho key."}],
     });
   }
@@ -1009,11 +2118,11 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); font-si
     await loadKeys();
     await modal({
       title: `Đã cấp key “${res.key.name}”`,
-      body: `<div class="warnbox"><b>Sao chép key ngay bây giờ.</b> Đây là lần duy nhất key được hiển thị — server chỉ lưu bản băm, không thể xem lại.</div>
+      body: `<div class="warnbox">Key đã tạo thành công và được lưu trong danh sách. Bạn có thể xem hoặc sao chép lại bất kỳ lúc nào.</div>
         <div class="secret"><input type="text" id="new-key" readonly value="${esc(res.api_key)}" aria-label="API key mới" spellcheck="false">
         <button class="btn primary" type="button" id="copy-key">${icon("copy")}Sao chép</button></div>
-        <div class="usage-hint">Authorization: Bearer ${esc(res.api_key.slice(0, 12))}…</div>`,
-      actions: [{label: "Tôi đã lưu key", value: null, primary: true, cls: ""}],
+        <div class="usage-hint">Authorization: Bearer ${esc(res.api_key)}</div>`,
+      actions: [{label: "Đóng", value: null, primary: true, cls: ""}],
     });
   }));
   // The copy button lives inside the modal body, which is re-rendered per modal.
@@ -1022,9 +2131,7 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); font-si
     if (!btn) return;
     const input = $("#new-key");
     input.select();
-    let ok = false;
-    try { await navigator.clipboard.writeText(input.value); ok = true; }
-    catch { try { ok = document.execCommand("copy"); } catch {} }
+    const ok = await copyText(input.value);
     btn.innerHTML = ok ? `${icon("copy")}Đã sao chép` : "Hãy copy thủ công";
   });
 
@@ -1036,16 +2143,25 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); font-si
   $("#keys-body").addEventListener("click", (e) => {
     const tr = e.target.closest("tr[data-id]");
     if (!tr) return;
+    if (e.target.closest(".key-val")) return;
     const btn = e.target.closest("button[data-act]");
     if (!btn) return openKeyRequests(tr.dataset.id);
-    const k = state.keys.find((x) => x.id === tr.dataset.id);
+    const k = state.keys.find((x) => x.id === tr.dataset.id) || state.builtin.find((x) => x.id === tr.dataset.id);
     if (!k) return;
     guarded(async () => {
       const path = `/admin/keys/${encodeURIComponent(k.id)}`;
-      const ident = `<b>${esc(k.name)}</b> (<span class="mono">${esc(k.prefix)}…</span>)`;
+      const ident = `<b>${esc(k.name)}</b> (<span class="mono">${esc(k.key || (k.prefix ? `${k.prefix}…` : ""))}</span>)`;
       switch (btn.dataset.act) {
+        case "copy": {
+          const raw = btn.dataset.key || k.key || k.prefix || "";
+          if (raw) {
+            await copyText(raw);
+            toast("Đã sao chép API key vào clipboard");
+          }
+          return;
+        }
         case "edit": {
-          const form = await keyForm("Đổi tên key", k);
+          const form = await keyForm("Chỉnh sửa key", k);
           if (!form) return;
           await api(path, {method: "PATCH", body: form});
           toast("Đã cập nhật key");
@@ -1167,11 +2283,1232 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); font-si
     pathTimer = setTimeout(() => { state.offset = 0; guarded(loadRequests); }, 300);
   });
   $("#f-live").addEventListener("change", () => { $("#live-dot").classList.toggle("on", $("#f-live").checked); });
+  $("#req-refresh").addEventListener("click", () => guarded(loadRequests));
   $("#req-prev").addEventListener("click", () => { state.offset = Math.max(0, state.offset - state.limit); guarded(loadRequests); });
   $("#req-next").addEventListener("click", () => { state.offset += state.limit; guarded(loadRequests); });
 
+  // ---- playground ----
+    async function loadPlayground() {
+    if (!state.play) {
+      const threads = readPlayThreads();
+      const activeId = store.get(PLAY_ACTIVE_THREAD_KEY);
+      let currentThread = threads.find(t => t.id === activeId) || threads[0];
+      if (!currentThread) {
+        currentThread = {id:newThreadId(), title:"Cuộc trò chuyện mới", updatedAt:Date.now(), messages:[]};
+        threads.push(currentThread);
+      }
+      state.play = {
+        mode: "chat",
+        imageAction: "generate",
+        threads,
+        conversationId: currentThread.id,
+        abort: null,
+        pollTimer: null,
+        raw: null,
+        models: [],
+        chatMessages: currentThread.messages,
+        attachments: [],
+        attachedImages: [],
+        readingFilesCount: 0,
+        fileSessionId: 0,
+        removeMaskHasMarks: false,
+        removeMaskCanvas: null,
+        vidImage: null
+      };
+      initPlaygroundEvents();
+      renderChatMessages();
+    }
+    renderPlayThreadHistory();
+    store.set(PLAY_ACTIVE_THREAD_KEY, state.play.conversationId);
+    await loadAccounts();
+    updatePlaygroundAccounts();
+    if (!state.play.models.length) {
+      try {
+        const res = await api("/v1/models");
+        state.play.models = res.data || [];
+      } catch {
+        state.play.models = [
+          {id: "muse-chat", kind: "chat"},
+          {id: "muse-image", kind: "image"},
+          {id: "muse-video", kind: "video"}
+        ];
+      }
+    }
+    updatePlaygroundMode(state.play.mode);
+  }
+
+  function updatePlaygroundAccounts() {
+    const chatSel = $("#chat-account-select");
+    const mediaSel = $("#play-media-account");
+    const chatOpts = ['<option value="">Tự động (Pool chọn theo thuật toán)</option>'];
+    const mediaOpts = ['<option value="">Tự động (Pool chọn theo thuật toán)</option>'];
+    for (const a of (state.accounts || [])) {
+      const lbl = a.label ? `${a.label} (${a.id})` : a.id;
+      const enabled = a.enabled !== false;
+      const st = enabled ? (a.status || "active") : "tắt";
+      const label = `${esc(lbl)} [${esc(st)}]`;
+      chatOpts.push(`<option value="${esc(a.id)}"${enabled ? "" : " disabled"}>${label}</option>`);
+      mediaOpts.push(`<option value="${esc(a.id)}">${label}</option>`);
+    }
+    if (chatSel) {
+      const cur = chatSel.value;
+      chatSel.innerHTML = chatOpts.join("");
+      if (cur && (state.accounts || []).some((a) => a.id === cur && a.enabled !== false)) chatSel.value = cur;
+      else chatSel.value = "";
+    }
+    if (mediaSel) {
+      const cur = mediaSel.value;
+      mediaSel.innerHTML = mediaOpts.join("");
+      if (cur) mediaSel.value = cur;
+    }
+  }
+
+  function updatePlaygroundMode(mode) {
+    state.play.mode = mode;
+    for (const btn of $$("#play-mode button")) {
+      btn.setAttribute("aria-pressed", String(btn.dataset.m === mode));
+    }
+
+    const chatView = $("#play-chat-view");
+    const mediaView = $("#play-media-view");
+
+    if (mode === "chat") {
+      if (chatView) chatView.hidden = false;
+      if (mediaView) mediaView.hidden = true;
+      const chatModels = (state.play.models || []).filter(m => m.kind === "chat");
+      const chatSel = $("#chat-model-select");
+      if (chatSel) {
+        chatSel.innerHTML = chatModels.map(m => `<option value="${esc(m.id)}">${esc(m.id)}</option>`).join("") ||
+          '<option value="muse-chat">muse-chat</option>';
+      }
+    } else {
+      if (chatView) chatView.hidden = true;
+      if (mediaView) mediaView.hidden = false;
+      const isImg = mode === "image";
+      $("#play-fields-image").hidden = !isImg;
+      $("#play-fields-video").hidden = isImg;
+      if (isImg) updatePlayImageActionUI();
+      else {
+        $("#play-media-title").textContent = "Cấu hình Video";
+        $("#play-media-endpoint").textContent = "POST /v1/videos";
+        $("#play-media-submit").textContent = "Gửi request";
+        $("#play-media-prompt-label").textContent = "Prompt";
+        $("#play-media-prompt").placeholder = "Nhập prompt ở đây… (Ctrl+Enter để gửi)";
+      }
+
+      const avail = (state.play.models || []).filter(m => m.kind === mode);
+      const mediaSel = $("#play-media-model");
+      if (mediaSel) {
+        mediaSel.innerHTML = avail.map(m => `<option value="${esc(m.id)}">${esc(m.id)}</option>`).join("") ||
+          `<option value="muse-${mode}">muse-${mode}</option>`;
+      }
+    }
+  }
+
+  function updatePlayImageActionUI() {
+    const action = state.play.imageAction;
+    const editing = action === "edit";
+    const extracting = action === "extract-outfit";
+    const tryingOn = action === "try-on";
+    const removingObjects = action === "remove-object";
+    const addingAccessory = action === "add-accessory";
+    const replacingBackground = action === "replace-background";
+    const generating = action === "generate";
+    const isOutfit = extracting || tryingOn;
+    const optionalPrompt = isOutfit || removingObjects || addingAccessory;
+    $("#play-image-edit-fields").hidden = !editing;
+    $("#play-outfit-fields").hidden = !isOutfit;
+    $("#play-extract-outfit-fields").hidden = !extracting;
+    $("#play-try-on-fields").hidden = !tryingOn;
+    $("#play-remove-object-fields").hidden = !removingObjects;
+    $("#play-add-accessory-fields").hidden = !addingAccessory;
+    $("#play-replace-background-fields").hidden = !replacingBackground;
+    $("#play-img-size").closest("label").hidden = editing;
+    $("#play-img-transparent").closest("label").hidden = !generating;
+    const title = editing ? "Sửa ảnh" : extracting ? "Tách trang phục" : tryingOn ? "Thử trang phục"
+      : removingObjects ? "Xóa vật thể" : addingAccessory ? "Thêm phụ kiện"
+        : replacingBackground ? "Thay bối cảnh" : "Tạo ảnh";
+    const endpoint = editing ? "/v1/images/edits" : extracting ? "/v1/images/outfits/extract"
+      : tryingOn ? "/v1/images/outfits/try-on" : removingObjects ? "/v1/images/objects/remove"
+        : addingAccessory ? "/v1/images/accessories/add" : replacingBackground ? "/v1/images/background/replace"
+          : "/v1/images/generations";
+    $("#play-media-title").textContent = title;
+    $("#play-media-endpoint").textContent = `POST ${endpoint}`;
+    $("#play-media-submit").textContent = title;
+    $("#play-media-prompt-label").textContent = isOutfit || addingAccessory
+      ? "Hướng dẫn bổ sung (không bắt buộc)"
+      : removingObjects ? "Hướng dẫn xóa (có thể để trống nếu đã tô vùng)"
+        : replacingBackground ? "Hướng dẫn thêm (không bắt buộc)" : "Prompt";
+    $("#play-media-prompt").placeholder = isOutfit
+      ? "Ví dụ: giữ nguyên tư thế, ưu tiên thấy rõ toàn bộ trang phục… (không bắt buộc)"
+      : addingAccessory ? "Ví dụ: đặt kính lên mặt, giữ nguyên kiểu tóc… (không bắt buộc)"
+        : removingObjects ? "Ví dụ: xóa người đi phía sau và tái tạo phần tường…"
+          : replacingBackground ? "Ví dụ: giữ nguyên người, điều chỉnh ánh sáng để khớp với ảnh bối cảnh… (không bắt buộc)"
+            : "Nhập prompt ở đây… (Ctrl+Enter để gửi)";
+  }
+
+  function formatChatMarkdown(text) {
+    if (!text) return "";
+    let s = esc(text);
+    // Fenced code blocks ```lang ... ```
+    s = s.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (match, lang, code) => {
+      const c = code.trim();
+      return `<div class="code-block"><div class="code-header"><span>${lang || "code"}</span><button class="code-copy-btn" type="button" data-code="${c}">${icon("copy")}Sao chép mã</button></div><pre><code>${c}</code></pre></div>`;
+    });
+    // Inline code `...`
+    s = s.replace(/`([^`\n]+)`/g, '<code class="mono-inline">$1</code>');
+    // Bold **text**
+    s = s.replace(/\*\*([^\*]+)\*\*/g, '<strong>$1</strong>');
+    // Italic *text*
+    s = s.replace(/(^|[^\*])\*([^\*]+)\*/g, '$1<em>$2</em>');
+    // Paragraphs and breaks
+    s = s.replace(/\n\n+/g, '</p><p>');
+    s = s.replace(/\n/g, '<br>');
+    return `<p>${s}</p>`.replace(/<p><\/p>/g, '');
+  }
+
+  function renderChatMessages() {
+    const welcome = $("#chat-welcome");
+    const thread = $("#chat-thread");
+    if (!welcome || !thread) return;
+
+    if (!state.play.chatMessages || !state.play.chatMessages.length) {
+      welcome.hidden = false;
+      thread.hidden = true;
+      thread.innerHTML = "";
+      return;
+    }
+
+    welcome.hidden = true;
+    thread.hidden = false;
+
+    thread.innerHTML = state.play.chatMessages.map((m, idx) => {
+      if (m.role === "user") {
+        const atts = m.attachments || (m.images || []).map(url => ({isImage: true, dataUrl: url, name: "image"}));
+        const imgs = atts.filter(a => a.isImage);
+        const files = atts.filter(a => !a.isImage);
+        const imgsHtml = imgs.map(a => a.dataUrl
+          ? `<img src="${esc(a.dataUrl)}" alt="${esc(a.name || 'image')}" title="${esc(a.name || 'image')}" onclick="window.open(this.src)">`
+          : `<div class="chat-user-file-chip" title="Ảnh đính kèm trước đây"><svg class="i chat-file-icon"><use href="#i-attach"/></svg><div class="chat-file-info"><span class="chat-file-name">${esc(a.name || "Ảnh đính kèm")}</span><span class="chat-file-size">Nội dung ảnh không lưu trong lịch sử cục bộ</span></div></div>`).join("");
+        const filesHtml = files.map(a => `
+          <div class="chat-user-file-chip" title="${esc(a.name)}">
+            <svg class="i chat-file-icon"><use href="#i-doc"/></svg>
+            <div class="chat-file-info">
+              <span class="chat-file-name">${esc(a.name)}</span>
+              <span class="chat-file-size">${fmtBytes(a.size)}</span>
+            </div>
+          </div>`).join("");
+        return `<div class="chat-msg user" data-idx="${idx}">
+          ${imgsHtml ? `<div class="chat-user-images">${imgsHtml}</div>` : ""}
+          ${filesHtml ? `<div class="chat-user-files">${filesHtml}</div>` : ""}
+          ${m.content ? `<div class="chat-user-bubble">${esc(m.content)}</div>` : ""}
+        </div>`;
+      } else {
+        const isStreaming = Boolean(m.streaming);
+        const htmlContent = isStreaming ? esc(m.content || "").replace(/\n/g, "<br>") + `<span class="chat-cursor"></span>` : formatChatMarkdown(m.content);
+        return `<div class="chat-msg assistant" data-idx="${idx}">
+          <div class="chat-avatar"><svg class="i"><use href="#i-sparkle"/></svg></div>
+          <div class="chat-assistant-body">
+            <div class="chat-msg-header">
+              <span>${esc(m.model || "assistant")}</span>
+              ${m.ms ? `<span class="mono muted">· ${fmtMs(m.ms)}</span>` : ""}
+              ${m.error ? `<span class="badge b-err">Lỗi</span>` : ""}
+            </div>
+            <div class="chat-assistant-content" id="chat-content-${idx}">${htmlContent}</div>
+            ${!isStreaming && m.content ? `
+              <div class="chat-msg-toolbar">
+                <button type="button" class="btn sm ghost chat-copy-msg-btn" data-text="${esc(m.content)}" title="Sao chép câu trả lời">${icon("copy")}Sao chép</button>
+                ${m.error && m.retryData ? `<button type="button" class="btn sm ghost chat-retry-btn" data-idx="${idx}" title="Khôi phục tệp và nội dung để gửi lại">${icon("refresh")}Thử lại</button>` : ""}
+              </div>` : ""}
+          </div>
+        </div>`;
+      }
+    }).join("");
+
+    scrollChatToBottom();
+  }
+
+  function scrollChatToBottom() {
+    const box = $("#chat-messages");
+    if (box) box.scrollTop = box.scrollHeight;
+  }
+
+  function renderChatAttachments() {
+    const row = $("#chat-attachments-row");
+    if (!row) return;
+    const atts = state.play.attachments || [];
+    if (!atts.length) {
+      row.hidden = true;
+      row.innerHTML = "";
+      return;
+    }
+    row.hidden = false;
+    row.innerHTML = atts.map((att, idx) => {
+      if (att.isImage) {
+        return `
+          <div class="chat-thumb-item" title="${esc(att.name)} (${fmtBytes(att.size)})">
+            <img src="${esc(att.dataUrl)}" alt="${esc(att.name)}">
+            <button type="button" class="chat-thumb-rm" data-idx="${idx}" title="Xóa ảnh">&times;</button>
+          </div>`;
+      } else {
+        return `
+          <div class="chat-file-item" title="${esc(att.name)} (${fmtBytes(att.size)})">
+            <svg class="i chat-file-icon"><use href="#i-doc"/></svg>
+            <div class="chat-file-info">
+              <span class="chat-file-name">${esc(att.name)}</span>
+              <span class="chat-file-size">${fmtBytes(att.size)}</span>
+            </div>
+            <button type="button" class="chat-file-rm" data-idx="${idx}" title="Xóa tệp">&times;</button>
+          </div>`;
+      }
+    }).join("");
+  }
+
+  function autoResizeTextarea(ta) {
+    if (!ta) return;
+    ta.style.height = "auto";
+    const newH = Math.min(ta.scrollHeight, 160);
+    ta.style.height = `${Math.max(newH, 24)}px`;
+  }
+
+  function updateSendButtonState() {
+    const btn = $("#chat-send-btn");
+    const ta = $("#chat-textarea");
+    if (!btn || !ta) return;
+    const hasText = Boolean(ta.value.trim());
+    const hasAtt = Boolean(state.play.attachments && state.play.attachments.length);
+    const isBusy = Boolean(state.play.abort);
+    const isReading = Boolean(state.play.readingFilesCount > 0);
+    if (isBusy) {
+      btn.disabled = false;
+      btn.classList.add("stop-btn");
+      $("#chat-send-icon").hidden = true;
+      $("#chat-stop-icon").hidden = false;
+      btn.title = "Dừng sinh câu trả lời";
+    } else if (isReading) {
+      btn.classList.remove("stop-btn");
+      btn.disabled = true;
+      $("#chat-send-icon").hidden = false;
+      $("#chat-stop-icon").hidden = true;
+      btn.title = "Đang đọc tệp đính kèm…";
+    } else {
+      btn.classList.remove("stop-btn");
+      btn.disabled = !(hasText || hasAtt);
+      $("#chat-send-icon").hidden = false;
+      $("#chat-stop-icon").hidden = true;
+      btn.title = "Gửi tin nhắn (Enter)";
+    }
+  }
+
+  function handleChatFiles(files) {
+    if (!files || !files.length) return;
+    if (!state.play.attachments) state.play.attachments = [];
+    const currentSession = state.play.fileSessionId || 0;
+    const maxBytes = 25 * 1024 * 1024; // 25MB limit
+    for (const file of files) {
+      if (file.size > maxBytes) {
+        toast(`Tệp "${file.name}" vượt quá giới hạn 25MB`);
+        continue;
+      }
+      const isImg = file.type ? file.type.startsWith("image/") : /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(file.name);
+      const reader = new FileReader();
+      state.play.readingFilesCount = (state.play.readingFilesCount || 0) + 1;
+      updateSendButtonState();
+
+      reader.onload = () => {
+        if (currentSession !== (state.play.fileSessionId || 0)) return;
+        state.play.readingFilesCount = Math.max(0, (state.play.readingFilesCount || 1) - 1);
+        state.play.attachments.push({
+          id: "att_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7),
+          name: file.name,
+          size: file.size,
+          type: file.type || "application/octet-stream",
+          isImage: isImg,
+          dataUrl: reader.result
+        });
+        renderChatAttachments();
+        updateSendButtonState();
+      };
+
+      reader.onerror = () => {
+        if (currentSession !== (state.play.fileSessionId || 0)) return;
+        state.play.readingFilesCount = Math.max(0, (state.play.readingFilesCount || 1) - 1);
+        toast(`Lỗi khi đọc tệp "${file.name}"`);
+        updateSendButtonState();
+      };
+
+      reader.onabort = () => {
+        if (currentSession !== (state.play.fileSessionId || 0)) return;
+        state.play.readingFilesCount = Math.max(0, (state.play.readingFilesCount || 1) - 1);
+        updateSendButtonState();
+      };
+
+      reader.readAsDataURL(file);
+    }
+  }
+
+  function initPlaygroundEvents() {
+    // Mode switch
+    $("#play-mode").addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-m]");
+      if (btn) updatePlaygroundMode(btn.dataset.m);
+    });
+
+    // Chat events
+    const ta = $("#chat-textarea");
+    if (ta) {
+      ta.addEventListener("input", () => {
+        autoResizeTextarea(ta);
+        updateSendButtonState();
+      });
+      ta.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          if (!$("#chat-send-btn").disabled) sendChatMessage();
+        }
+      });
+      ta.addEventListener("paste", (e) => {
+        const items = (e.clipboardData || window.clipboardData)?.items;
+        if (!items) return;
+        const pastedFiles = [];
+        for (const item of items) {
+          if (item.kind === "file") {
+            const f = item.getAsFile();
+            if (f) pastedFiles.push(f);
+          }
+        }
+        if (pastedFiles.length) {
+          e.preventDefault();
+          handleChatFiles(pastedFiles);
+        }
+      });
+    }
+
+    $("#chat-send-btn").addEventListener("click", () => {
+      if (state.play.abort) {
+        state.play.abort.abort();
+        state.play.abort = null;
+        updateSendButtonState();
+        return;
+      }
+      sendChatMessage();
+    });
+
+    $("#chat-attach-btn").addEventListener("click", () => {
+      $("#chat-file-input").click();
+    });
+    $("#chat-file-input").addEventListener("change", (e) => {
+      handleChatFiles(e.target.files);
+      e.target.value = "";
+    });
+
+    $("#chat-attachments-row").addEventListener("click", (e) => {
+      const rm = e.target.closest(".chat-thumb-rm, .chat-file-rm");
+      if (!rm) return;
+      const idx = Number(rm.dataset.idx);
+      if (state.play.attachments) {
+        state.play.attachments.splice(idx, 1);
+        renderChatAttachments();
+        updateSendButtonState();
+      }
+    });
+
+    // Chat container drag-and-drop
+    const chatContainer = $("#chat-container");
+    const dropOverlay = $("#chat-dropzone-overlay");
+    if (chatContainer) {
+      let dragCount = 0;
+      chatContainer.addEventListener("dragenter", (e) => {
+        e.preventDefault();
+        dragCount++;
+        if (dropOverlay) dropOverlay.hidden = false;
+      });
+      chatContainer.addEventListener("dragover", (e) => {
+        e.preventDefault();
+      });
+      chatContainer.addEventListener("dragleave", (e) => {
+        e.preventDefault();
+        dragCount--;
+        if (dragCount <= 0) {
+          dragCount = 0;
+          if (dropOverlay) dropOverlay.hidden = true;
+        }
+      });
+      chatContainer.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dragCount = 0;
+        if (dropOverlay) dropOverlay.hidden = true;
+        handleChatFiles(e.dataTransfer?.files);
+      });
+    }
+
+    // Suggestions click
+    $("#chat-messages").addEventListener("click", (e) => {
+      const chip = e.target.closest(".chat-suggestion-chip");
+      if (chip) {
+        const pr = chip.dataset.prompt;
+        const textarea = $("#chat-textarea");
+        textarea.value = pr;
+        autoResizeTextarea(textarea);
+        updateSendButtonState();
+        textarea.focus();
+      }
+    });
+
+    // New conversation / clear
+    $("#chat-clear-btn").addEventListener("click", () => {
+      if (state.play.abort) {
+        toast("Hãy đợi lượt trả lời hiện tại kết thúc trước khi tạo cuộc trò chuyện mới");
+        return;
+      }
+      persistPlayThreads();
+      state.play.threads = state.play.threads.filter(t => t.messages?.length);
+      const thread = {id:newThreadId(), title:"Cuộc trò chuyện mới", updatedAt:Date.now(), messages:[]};
+      state.play.threads.unshift(thread);
+      state.play.conversationId = thread.id;
+      state.play.chatMessages = thread.messages;
+      state.play.fileSessionId = (state.play.fileSessionId || 0) + 1;
+      state.play.readingFilesCount = 0;
+      state.play.attachments = [];
+      state.play.attachedImages = [];
+      renderChatAttachments();
+      renderChatMessages();
+      renderPlayThreadHistory();
+      persistPlayThreads();
+      $("#chat-history-panel").hidden = true;
+      $("#chat-history-btn").setAttribute("aria-expanded", "false");
+      const textarea = $("#chat-textarea");
+      textarea.value = "";
+      autoResizeTextarea(textarea);
+      updateSendButtonState();
+      toast("Đã bắt đầu cuộc trò chuyện mới");
+    });
+
+    $("#chat-history-btn").addEventListener("click", () => {
+      const panel = $("#chat-history-panel");
+      panel.hidden = !panel.hidden;
+      $("#chat-history-btn").setAttribute("aria-expanded", String(!panel.hidden));
+      if (!panel.hidden) renderPlayThreadHistory();
+    });
+    $("#chat-history-list").addEventListener("click", (e) => {
+      const button = e.target.closest("button[data-thread-id]");
+      if (!button || button.dataset.threadId === state.play.conversationId) return;
+      if (state.play.abort) {
+        toast("Hãy đợi lượt trả lời hiện tại kết thúc trước khi chuyển cuộc trò chuyện");
+        return;
+      }
+      persistPlayThreads();
+      const thread = state.play.threads.find(t => t.id === button.dataset.threadId);
+      if (!thread) return;
+      state.play.conversationId = thread.id;
+      state.play.chatMessages = thread.messages;
+      state.play.attachments = [];
+      renderChatAttachments();
+      renderChatMessages();
+      renderPlayThreadHistory();
+      store.set(PLAY_ACTIVE_THREAD_KEY, thread.id);
+      $("#chat-history-panel").hidden = true;
+      $("#chat-history-btn").setAttribute("aria-expanded", "false");
+      $("#chat-textarea").value = "";
+      autoResizeTextarea($("#chat-textarea"));
+      updateSendButtonState();
+    });
+
+    // Settings panel
+    $("#chat-settings-btn").addEventListener("click", () => {
+      const p = $("#chat-settings-panel");
+      p.hidden = !p.hidden;
+    });
+    $("#chat-settings-close").addEventListener("click", () => {
+      $("#chat-settings-panel").hidden = true;
+    });
+
+    // Code copy & message copy buttons in chat
+    $("#chat-thread").addEventListener("click", async (e) => {
+      const codeBtn = e.target.closest(".code-copy-btn");
+      if (codeBtn) {
+        const code = codeBtn.dataset.code;
+        await copyText(code);
+        codeBtn.innerHTML = `${icon("copy")}Đã sao chép!`;
+        setTimeout(() => { codeBtn.innerHTML = `${icon("copy")}Sao chép mã`; }, 2000);
+        return;
+      }
+      const msgCopy = e.target.closest(".chat-copy-msg-btn");
+      if (msgCopy) {
+        const text = msgCopy.dataset.text;
+        await copyText(text);
+        toast("Đã sao chép câu trả lời vào clipboard");
+        return;
+      }
+      const retryBtn = e.target.closest(".chat-retry-btn");
+      if (retryBtn) {
+        const idx = Number(retryBtn.dataset.idx);
+        const m = state.play.chatMessages[idx];
+        if (m && m.retryData) {
+          const ta = $("#chat-textarea");
+          ta.value = m.retryData.prompt || "";
+          state.play.attachments = [...(m.retryData.attachments || [])];
+          renderChatAttachments();
+          autoResizeTextarea(ta);
+          updateSendButtonState();
+          ta.focus();
+          toast("Đã khôi phục tin nhắn và tệp đính kèm");
+        }
+        return;
+      }
+    });
+
+    // Media (Image & Video) events
+    $("#play-image-action").addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-action]");
+      if (!btn) return;
+      state.play.imageAction = btn.dataset.action;
+      for (const tab of $$("#play-image-action button")) {
+        tab.setAttribute("aria-pressed", String(tab === btn));
+      }
+      updatePlayImageActionUI();
+    });
+    const editFileInput = $("#play-edit-image-file");
+    $("#play-edit-image-btn").addEventListener("click", () => editFileInput.click());
+    const setEditImage = (file) => {
+      if (!file) return;
+      if (!file.type.startsWith("image/")) return toast("Vui lòng chọn tệp ảnh");
+      const reader = new FileReader();
+      reader.onload = () => {
+        $("#play-edit-image-thumb").src = reader.result;
+        $("#play-edit-image-thumb").hidden = false;
+        $("#play-edit-image-name").textContent = file.name;
+        $("#play-edit-image-remove").hidden = false;
+        $("#play-edit-image-btn").hidden = true;
+      };
+      reader.onerror = () => toast(`Không đọc được ảnh "${file.name}"`);
+      reader.readAsDataURL(file);
+    };
+    editFileInput.addEventListener("change", () => setEditImage(editFileInput.files[0]));
+    $("#play-edit-image-remove").addEventListener("click", () => {
+      editFileInput.value = "";
+      $("#play-edit-image-thumb").removeAttribute("src");
+      $("#play-edit-image-thumb").hidden = true;
+      $("#play-edit-image-name").textContent = "";
+      $("#play-edit-image-remove").hidden = true;
+      $("#play-edit-image-btn").hidden = false;
+    });
+    const editDropzone = $("#play-edit-dropzone");
+    editDropzone.addEventListener("dragover", (e) => { e.preventDefault(); editDropzone.classList.add("dragover"); });
+    editDropzone.addEventListener("dragleave", () => editDropzone.classList.remove("dragover"));
+    editDropzone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      editDropzone.classList.remove("dragover");
+      setEditImage(e.dataTransfer?.files?.[0]);
+    });
+    const bindOutfitImagePicker = (inputId, buttonId, thumbId, nameId, removeId, dropzoneId) => {
+      const input = $(inputId), button = $(buttonId), thumb = $(thumbId);
+      const name = $(nameId), remove = $(removeId), dropzone = $(dropzoneId);
+      const setFile = (file) => {
+        if (!file) return;
+        if (!file.type.startsWith("image/")) return toast("Vui lòng chọn tệp ảnh");
+        const reader = new FileReader();
+        reader.onload = () => {
+          thumb.src = reader.result;
+          thumb.hidden = false;
+          name.textContent = file.name;
+          remove.hidden = false;
+          button.hidden = true;
+        };
+        reader.onerror = () => toast(`Không đọc được ảnh "${file.name}"`);
+        reader.readAsDataURL(file);
+      };
+      button.addEventListener("click", () => input.click());
+      input.addEventListener("change", () => setFile(input.files[0]));
+      remove.addEventListener("click", () => {
+        input.value = "";
+        thumb.removeAttribute("src");
+        thumb.hidden = true;
+        name.textContent = "";
+        remove.hidden = true;
+        button.hidden = false;
+      });
+      dropzone.addEventListener("dragover", (e) => { e.preventDefault(); dropzone.classList.add("dragover"); });
+      dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
+      dropzone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropzone.classList.remove("dragover");
+        setFile(e.dataTransfer?.files?.[0]);
+      });
+    };
+    bindOutfitImagePicker("#play-outfit-source-file", "#play-outfit-source-btn", "#play-outfit-source-thumb",
+      "#play-outfit-source-name", "#play-outfit-source-remove", "#play-outfit-source-dropzone");
+    bindOutfitImagePicker("#play-try-character-file", "#play-try-character-btn", "#play-try-character-thumb",
+      "#play-try-character-name", "#play-try-character-remove", "#play-try-character-dropzone");
+    bindOutfitImagePicker("#play-try-outfit-file", "#play-try-outfit-btn", "#play-try-outfit-thumb",
+      "#play-try-outfit-name", "#play-try-outfit-remove", "#play-try-outfit-dropzone");
+    bindOutfitImagePicker("#play-accessory-base-file", "#play-accessory-base-btn", "#play-accessory-base-thumb",
+      "#play-accessory-base-name", "#play-accessory-base-remove", "#play-accessory-base-dropzone");
+    bindOutfitImagePicker("#play-accessory-ref-file", "#play-accessory-ref-btn", "#play-accessory-ref-thumb",
+      "#play-accessory-ref-name", "#play-accessory-ref-remove", "#play-accessory-ref-dropzone");
+    bindOutfitImagePicker("#play-background-image-file", "#play-background-image-btn", "#play-background-image-thumb",
+      "#play-background-image-name", "#play-background-image-remove", "#play-background-image-dropzone");
+    bindOutfitImagePicker("#play-background-ref-file", "#play-background-ref-btn", "#play-background-ref-thumb",
+      "#play-background-ref-name", "#play-background-ref-remove", "#play-background-ref-dropzone");
+
+    const removeImageInput = $("#play-remove-image-file");
+    const removeImagePreview = $("#play-remove-image-preview");
+    const removeMaskCanvas = $("#play-remove-mask-canvas");
+    const maskCtx = removeMaskCanvas.getContext("2d");
+    const maskDataCanvas = document.createElement("canvas");
+    state.play.removeMaskCanvas = maskDataCanvas;
+    const maskDataCtx = maskDataCanvas.getContext("2d");
+    let removeImageObjectUrl = null;
+    let maskDrawing = false;
+    let previousPoint = null;
+    const resetRemoveMask = () => {
+      state.play.removeMaskHasMarks = false;
+      if (removeMaskCanvas.width && removeMaskCanvas.height) {
+        maskCtx.clearRect(0, 0, removeMaskCanvas.width, removeMaskCanvas.height);
+        maskDataCtx.fillStyle = "#000";
+        maskDataCtx.fillRect(0, 0, maskDataCanvas.width, maskDataCanvas.height);
+      }
+    };
+    $("#play-remove-image-btn").addEventListener("click", () => removeImageInput.click());
+    removeImageInput.addEventListener("change", () => {
+      const file = removeImageInput.files[0];
+      if (!file) return;
+      if (!file.type.startsWith("image/")) {
+        removeImageInput.value = "";
+        return toast("Vui lòng chọn tệp ảnh");
+      }
+      state.play.removeMaskHasMarks = false;
+      removeImagePreview.onload = () => {
+        removeMaskCanvas.width = maskDataCanvas.width = removeImagePreview.naturalWidth;
+        removeMaskCanvas.height = maskDataCanvas.height = removeImagePreview.naturalHeight;
+        maskDataCtx.fillStyle = "#000";
+        maskDataCtx.fillRect(0, 0, maskDataCanvas.width, maskDataCanvas.height);
+        resetRemoveMask();
+        $("#play-remove-mask-editor").hidden = false;
+        $("#play-remove-image-clear").hidden = false;
+      };
+      if (removeImageObjectUrl) URL.revokeObjectURL(removeImageObjectUrl);
+      removeImageObjectUrl = URL.createObjectURL(file);
+      removeImagePreview.src = removeImageObjectUrl;
+      $("#play-remove-image-name").textContent = file.name;
+    });
+    $("#play-remove-image-clear").addEventListener("click", () => {
+      removeImageInput.value = "";
+      removeImagePreview.removeAttribute("src");
+      if (removeImageObjectUrl) URL.revokeObjectURL(removeImageObjectUrl);
+      removeImageObjectUrl = null;
+      $("#play-remove-image-name").textContent = "";
+      $("#play-remove-mask-editor").hidden = true;
+      $("#play-remove-image-clear").hidden = true;
+      removeMaskCanvas.width = removeMaskCanvas.height = 0;
+      maskDataCanvas.width = maskDataCanvas.height = 0;
+      state.play.removeMaskHasMarks = false;
+    });
+    $("#play-remove-clear-mask").addEventListener("click", resetRemoveMask);
+    const maskPoint = (event) => {
+      const rect = removeMaskCanvas.getBoundingClientRect();
+      return {
+        x: (event.clientX - rect.left) * removeMaskCanvas.width / rect.width,
+        y: (event.clientY - rect.top) * removeMaskCanvas.height / rect.height,
+      };
+    };
+    const paintMaskPoint = (from, to) => {
+      const radius = Math.max(2, Math.min(maskDataCanvas.width, maskDataCanvas.height)
+        * Number($("#play-remove-brush-size").value) / 200);
+      for (const [ctx, color] of [[maskCtx, "rgba(255,45,45,.58)"], [maskDataCtx, "#fff"]]) {
+        ctx.beginPath();
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.lineWidth = radius * 2;
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        if (to) {
+          ctx.moveTo(from.x, from.y);
+          ctx.lineTo(to.x, to.y);
+          ctx.stroke();
+        } else {
+          ctx.arc(from.x, from.y, radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      state.play.removeMaskHasMarks = true;
+    };
+    removeMaskCanvas.addEventListener("pointerdown", (event) => {
+      if (!removeImageInput.files[0]) return;
+      event.preventDefault();
+      maskDrawing = true;
+      previousPoint = maskPoint(event);
+      removeMaskCanvas.setPointerCapture(event.pointerId);
+      paintMaskPoint(previousPoint, null);
+    });
+    removeMaskCanvas.addEventListener("pointermove", (event) => {
+      if (!maskDrawing) return;
+      const nextPoint = maskPoint(event);
+      paintMaskPoint(previousPoint, nextPoint);
+      previousPoint = nextPoint;
+    });
+    const finishMaskStroke = () => { maskDrawing = false; previousPoint = null; };
+    removeMaskCanvas.addEventListener("pointerup", finishMaskStroke);
+    removeMaskCanvas.addEventListener("pointercancel", finishMaskStroke);
+    $("#play-vid-file-btn").addEventListener("click", () => $("#play-vid-file").click());
+    $("#play-vid-file").addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        state.play.vidImage = reader.result;
+        $("#play-vid-thumb").src = reader.result;
+        $("#play-vid-thumb").hidden = false;
+        $("#play-vid-rm-img").hidden = false;
+        $("#play-vid-file-btn").hidden = true;
+      };
+      reader.readAsDataURL(file);
+    });
+    $("#play-vid-rm-img").addEventListener("click", () => {
+      state.play.vidImage = null;
+      $("#play-vid-file").value = "";
+      $("#play-vid-thumb").hidden = true;
+      $("#play-vid-rm-img").hidden = true;
+      $("#play-vid-file-btn").hidden = false;
+    });
+
+    $("#play-media-prompt").addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        $("#play-media-submit").click();
+      }
+    });
+
+    $("#play-copy-btn").addEventListener("click", () => {
+      const isRaw = !$("#play-raw-json").hidden;
+      const text = isRaw ? $("#play-raw-json").textContent : $("#play-output").textContent;
+      navigator.clipboard.writeText(text).then(() => toast("Đã sao chép vào clipboard"));
+    });
+
+    $("#play-view-toggle").addEventListener("click", () => {
+      const showRaw = $("#play-raw-json").hidden;
+      $("#play-raw-json").hidden = !showRaw;
+      $("#play-output").hidden = showRaw;
+      $("#play-view-toggle").textContent = showRaw ? "Xem kết quả" : "Xem JSON";
+    });
+
+    $("#play-media-cancel").addEventListener("click", () => {
+      if (state.play.abort) state.play.abort.abort();
+      if (state.play.pollTimer) clearInterval(state.play.pollTimer);
+      finishMediaPlayground(false, "Đã hủy bởi người dùng");
+    });
+
+    $("#play-media-submit").addEventListener("click", runMediaPlayground);
+  }
+
+  async function sendChatMessage() {
+    if (state.play.readingFilesCount > 0) {
+      toast("Đang đọc tệp đính kèm, vui lòng đợi…");
+      return;
+    }
+    const ta = $("#chat-textarea");
+    const prompt = ta.value.trim();
+    const currentAtts = [...(state.play.attachments || [])];
+    if (!prompt && !currentAtts.length) return;
+    const backupPrompt = prompt;
+    const backupAtts = [...currentAtts];
+
+    const model = $("#chat-model-select").value || "muse-chat";
+    const isStream = $("#chat-stream-toggle") ? $("#chat-stream-toggle").checked : true;
+    const chosenAcc = $("#chat-account-select") ? $("#chat-account-select").value : "";
+    const conversationId = state.play.conversationId;
+
+    // Add user message
+    state.play.chatMessages.push({
+      role: "user",
+      content: prompt,
+      attachments: currentAtts,
+      time: Date.now()
+    });
+
+    // Reset input
+    ta.value = "";
+    autoResizeTextarea(ta);
+    state.play.attachments = [];
+    renderChatAttachments();
+
+    // Add assistant placeholder
+    const asstIndex = state.play.chatMessages.length;
+    const asstMsg = {
+      role: "assistant",
+      content: "",
+      model: model,
+      time: Date.now(),
+      streaming: true
+    };
+    state.play.chatMessages.push(asstMsg);
+    renderChatMessages();
+    persistPlayThreads();
+    renderPlayThreadHistory();
+
+    const controller = new AbortController();
+    state.play.abort = controller;
+    updateSendButtonState();
+
+    const headers = {
+      Authorization: `Bearer ${getKey()}`,
+      "Content-Type": "application/json"
+    };
+    if (chosenAcc) headers["X-Account-ID"] = chosenAcc;
+
+    // Prepare API history
+    const apiMessages = [];
+    const sys = $("#chat-system-prompt") ? $("#chat-system-prompt").value.trim() : "";
+    if (sys) apiMessages.push({role: "system", content: sys});
+
+    for (const m of state.play.chatMessages.slice(0, asstIndex)) {
+      if (m.role === "user") {
+        const atts = m.attachments || [];
+        if (atts.length) {
+          const parts = [];
+          if (m.content) parts.push({type: "text", text: m.content});
+          for (const att of atts) {
+            if (!att.dataUrl) {
+              parts.push({type: "text", text: `[Tệp đính kèm trước đây: ${att.name || "không rõ tên"}; dữ liệu không còn trong lịch sử cục bộ]`});
+              continue;
+            }
+            if (att.isImage) {
+              parts.push({type: "image_url", image_url: {url: att.dataUrl}});
+            } else {
+              parts.push({
+                type: "input_file",
+                file: {name: att.name, size: att.size, mime: att.type, data: att.dataUrl}
+              });
+            }
+          }
+          apiMessages.push({role: "user", content: parts});
+        } else {
+          apiMessages.push({role: "user", content: m.content});
+        }
+      } else if (m.role === "assistant" && m.content) {
+        apiMessages.push({role: "assistant", content: m.content});
+      }
+    }
+
+    const startTime = Date.now();
+    try {
+      const res = await fetch("/v1/chat/completions", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({model, messages: apiMessages, stream: isStream, user: conversationId}),
+        signal: controller.signal
+      });
+
+      if (!res.ok) {
+        let errText = `${res.status} ${res.statusText}`;
+        try { const d = await res.json(); errText = d.error?.message || errText; } catch {}
+        throw new Error(errText);
+      }
+
+      if (isStream) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buf = "";
+        const contentEl = $(`#chat-content-${asstIndex}`);
+        while (true) {
+          const {done, value} = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, {stream: true});
+          const lines = buf.split("\n");
+          buf = lines.pop() || "";
+          for (const line of lines) {
+            const tr = line.trim();
+            if (!tr.startsWith("data:")) continue;
+            const payload = tr.slice(5).trim();
+            if (payload === "[DONE]") continue;
+            try {
+              const parsed = JSON.parse(payload);
+              const delta = parsed.choices?.[0]?.delta?.content || "";
+              asstMsg.content += delta;
+              if (contentEl) {
+                contentEl.innerHTML = esc(asstMsg.content).replace(/\n/g, "<br>") + `<span class="chat-cursor"></span>`;
+                scrollChatToBottom();
+              }
+            } catch {}
+          }
+        }
+        asstMsg.streaming = false;
+        asstMsg.ms = Date.now() - startTime;
+        renderChatMessages();
+        persistPlayThreads();
+        renderPlayThreadHistory();
+      } else {
+        const data = await res.json();
+        asstMsg.content = data.choices?.[0]?.message?.content || "(Không có phản hồi)";
+        asstMsg.streaming = false;
+        asstMsg.ms = Date.now() - startTime;
+        renderChatMessages();
+        persistPlayThreads();
+        renderPlayThreadHistory();
+      }
+    } catch (err) {
+      asstMsg.streaming = false;
+      asstMsg.ms = Date.now() - startTime;
+      if (err.name === "AbortError") {
+        asstMsg.content = asstMsg.content ? asstMsg.content + " [Đã dừng]" : "[Đã dừng]";
+      } else {
+        asstMsg.content = `Lỗi: ${err.message}`;
+        asstMsg.error = true;
+        asstMsg.retryData = { prompt: backupPrompt, attachments: backupAtts };
+      }
+      renderChatMessages();
+      persistPlayThreads();
+      renderPlayThreadHistory();
+    } finally {
+      state.play.abort = null;
+      updateSendButtonState();
+    }
+  }
+
+  async function runMediaPlayground() {
+    const prompt = $("#play-media-prompt").value.trim();
+    const mode = state.play.mode;
+    const action = state.play.imageAction;
+    const promptOptional = mode === "image" && ["extract-outfit", "try-on", "add-accessory", "replace-background"].includes(action);
+    const removePromptSatisfied = mode === "image" && action === "remove-object" && state.play.removeMaskHasMarks;
+    if (!prompt && !promptOptional && !removePromptSatisfied) return toast("Vui lòng nhập hướng dẫn");
+    const model = $("#play-media-model").value;
+    const startTime = Date.now();
+
+    $("#play-media-submit").disabled = true;
+    $("#play-media-cancel").hidden = false;
+    $("#play-status-dot").className = "pulse warn";
+    $("#play-status-text").textContent = "Đang xử lý…";
+    $("#play-time").textContent = "";
+    $("#play-media-preview").hidden = true;
+    $("#play-media-preview").innerHTML = "";
+    $("#play-output").hidden = false;
+    $("#play-raw-json").hidden = true;
+    $("#play-view-toggle").textContent = "Xem JSON";
+    $("#play-output").textContent = "";
+
+    const controller = new AbortController();
+    state.play.abort = controller;
+    state.play.raw = null;
+
+    const headers = {
+      Authorization: `Bearer ${getKey()}`,
+      "Content-Type": "application/json"
+    };
+    const chosenAcc = $("#play-media-account").value;
+    if (chosenAcc) headers["X-Account-ID"] = chosenAcc;
+
+    try {
+      if (mode === "image") {
+        const editing = action === "edit";
+        const extractingOutfit = action === "extract-outfit";
+        const tryingOnOutfit = action === "try-on";
+        const removingObjects = action === "remove-object";
+        const addingAccessory = action === "add-accessory";
+        const replacingBackground = action === "replace-background";
+        let res;
+        if (editing) {
+          const file = $("#play-edit-image-file").files[0];
+          if (!file) throw new Error("Vui lòng chọn ảnh cần sửa");
+          $("#play-status-text").textContent = "Đang gửi ảnh để sửa…";
+          const body = new FormData();
+          body.append("image", file, file.name);
+          body.append("prompt", prompt);
+          body.append("model", model);
+          delete headers["Content-Type"];
+          res = await fetch("/v1/images/edits", {
+            method: "POST", headers, body, signal: controller.signal
+          });
+        } else if (extractingOutfit || tryingOnOutfit || removingObjects || addingAccessory || replacingBackground) {
+          const body = new FormData();
+          body.append("prompt", prompt);
+          body.append("model", model);
+          body.append("size", $("#play-img-size").value);
+          if (extractingOutfit) {
+            const image = $("#play-outfit-source-file").files[0];
+            if (!image) throw new Error("Vui lòng chọn ảnh nhân vật cần tách trang phục");
+            body.append("image", image, image.name);
+          } else if (tryingOnOutfit) {
+            const character = $("#play-try-character-file").files[0];
+            const outfit = $("#play-try-outfit-file").files[0];
+            if (!character || !outfit) throw new Error("Vui lòng chọn đủ ảnh nhân vật và ảnh trang phục");
+            body.append("character", character, character.name);
+            body.append("outfit", outfit, outfit.name);
+          } else if (removingObjects) {
+            const image = $("#play-remove-image-file").files[0];
+            if (!image) throw new Error("Vui lòng chọn ảnh gốc cần xóa vật thể");
+            body.append("image", image, image.name);
+            if (state.play.removeMaskHasMarks) {
+              const maskBlob = await new Promise(resolve => state.play.removeMaskCanvas.toBlob(resolve, "image/png"));
+              if (!maskBlob) throw new Error("Không tạo được mask từ vùng đã đánh dấu");
+              body.append("mask", maskBlob, "remove-mask.png");
+            }
+          } else if (addingAccessory) {
+            const image = $("#play-accessory-base-file").files[0];
+            const accessory = $("#play-accessory-ref-file").files[0];
+            if (!image || !accessory) throw new Error("Vui lòng chọn ảnh gốc và ảnh phụ kiện");
+            body.append("image", image, image.name);
+            body.append("accessory", accessory, accessory.name);
+          } else if (replacingBackground) {
+            const image = $("#play-background-image-file").files[0];
+            const backgroundImage = $("#play-background-ref-file").files[0];
+            if (!image || !backgroundImage) throw new Error("Vui lòng chọn ảnh cần sửa và ảnh bối cảnh tham chiếu");
+            body.append("image", image, image.name);
+            body.append("background_image", backgroundImage, backgroundImage.name);
+          }
+          delete headers["Content-Type"];
+          const endpoint = extractingOutfit ? "/v1/images/outfits/extract"
+            : tryingOnOutfit ? "/v1/images/outfits/try-on"
+              : removingObjects ? "/v1/images/objects/remove"
+                : addingAccessory ? "/v1/images/accessories/add" : "/v1/images/background/replace";
+          $("#play-status-text").textContent = extractingOutfit ? "Đang tách trang phục…"
+            : tryingOnOutfit ? "Đang thay trang phục…" : removingObjects ? "Đang xóa vật thể…"
+              : addingAccessory ? "Đang thêm phụ kiện…" : "Đang thay bối cảnh…";
+          res = await fetch(endpoint, {method:"POST", headers, body, signal:controller.signal});
+        } else {
+          $("#play-status-text").textContent = "Đang tạo ảnh…";
+          const size = $("#play-img-size").value;
+          const bg = $("#play-img-transparent").checked ? "transparent" : "auto";
+          res = await fetch("/v1/images/generations", {
+            method: "POST", headers,
+            body: JSON.stringify({model, prompt, size, background: bg}),
+            signal: controller.signal
+          });
+        }
+
+        if (!res.ok) {
+          let errText = `${res.status} ${res.statusText}`;
+          try { const d = await res.json(); errText = d.error?.message || errText; } catch {}
+          throw new Error(errText);
+        }
+
+        const data = await res.json();
+        state.play.raw = data;
+        $("#play-raw-json").textContent = JSON.stringify(data, null, 2);
+
+        const imgItem = data.data?.[0];
+        const imgUrl = imgItem?.url || (imgItem?.b64_json ? `data:image/png;base64,${imgItem.b64_json}` : null);
+        if (imgUrl) {
+          $("#play-media-preview").innerHTML = `
+            <img src="${esc(imgUrl)}" alt="Generated Image">
+            <div class="row" style="gap: 8px;">
+              <a href="${esc(imgUrl)}" target="_blank" download="muse2api-image.png" class="btn sm primary">Tải về</a>
+              <a href="${esc(imgUrl)}" target="_blank" class="btn sm">Mở tab mới</a>
+            </div>`;
+          $("#play-media-preview").hidden = false;
+          $("#play-output").textContent = imgItem.revised_prompt
+            ? `Revised prompt: ${imgItem.revised_prompt}`
+            : editing ? "Đã sửa ảnh thành công."
+              : extractingOutfit ? "Đã tách trang phục thành công."
+                : tryingOnOutfit ? "Đã thay trang phục thành công."
+                  : removingObjects ? "Đã xóa vật thể thành công."
+                    : addingAccessory ? "Đã thêm phụ kiện thành công."
+                      : replacingBackground ? "Đã thay bối cảnh thành công."
+                  : "Đã tạo ảnh thành công.";
+        } else {
+          $("#play-output").textContent = "Không tìm thấy URL ảnh trong kết quả trả về.";
+        }
+      } else if (mode === "video") {
+        $("#play-status-text").textContent = "Đang gửi task video…";
+        const duration = Number($("#play-vid-duration").value);
+        const body = {model, prompt, duration};
+        if (state.play.vidImage) body.image = state.play.vidImage;
+
+        const res = await fetch("/v1/videos", {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+          signal: controller.signal
+        });
+
+        if (!res.ok) {
+          let errText = `${res.status} ${res.statusText}`;
+          try { const d = await res.json(); errText = d.error?.message || errText; } catch {}
+          throw new Error(errText);
+        }
+
+        const task = await res.json();
+        state.play.raw = task;
+        $("#play-raw-json").textContent = JSON.stringify(task, null, 2);
+
+        const taskId = task.id;
+        $("#play-output").textContent = `Task ID: ${taskId}\nĐang chờ xử lý video…`;
+
+        await new Promise((resolve, reject) => {
+          state.play.pollTimer = setInterval(async () => {
+            try {
+              const pollRes = await fetch(`/v1/videos/${encodeURIComponent(taskId)}`, {
+                headers: { Authorization: `Bearer ${getKey()}` },
+                signal: controller.signal
+              });
+              if (!pollRes.ok) throw new Error(`Poll failed: ${pollRes.status}`);
+              const pollData = await pollRes.json();
+              state.play.raw = pollData;
+              $("#play-raw-json").textContent = JSON.stringify(pollData, null, 2);
+
+              const progress = pollData.progress != null ? `${Math.round(pollData.progress * 100)}%` : "…";
+              $("#play-status-text").textContent = `Đang tạo video (${progress})`;
+              $("#play-output").textContent = `Task ID: ${taskId}\nTrạng thái: ${pollData.status}\nTiến độ: ${progress}`;
+
+              if (pollData.status === "completed") {
+                clearInterval(state.play.pollTimer);
+                const vidUrl = pollData.result?.url;
+                if (vidUrl) {
+                  $("#play-media-preview").innerHTML = `
+                    <video controls autoplay loop src="${esc(vidUrl)}"></video>
+                    <div class="row" style="gap: 8px;">
+                      <a href="${esc(vidUrl)}" target="_blank" download="muse2api-video.mp4" class="btn sm primary">Tải về</a>
+                      <a href="${esc(vidUrl)}" target="_blank" class="btn sm">Mở tab mới</a>
+                    </div>`;
+                  $("#play-media-preview").hidden = false;
+                  $("#play-output").textContent = `Tạo video hoàn tất (${pollData.result.width || ""}x${pollData.result.height || ""})`;
+                }
+                resolve();
+              } else if (pollData.status === "failed") {
+                clearInterval(state.play.pollTimer);
+                reject(new Error(pollData.error || "Tạo video thất bại"));
+              }
+            } catch (e) {
+              clearInterval(state.play.pollTimer);
+              reject(e);
+            }
+          }, 1500);
+        });
+      }
+
+      finishMediaPlayground(true, "Hoàn tất", Date.now() - startTime);
+    } catch (err) {
+      if (err.name === "AbortError") {
+        finishMediaPlayground(false, "Đã hủy");
+      } else {
+        $("#play-output").textContent = `Lỗi: ${err.message}`;
+        finishMediaPlayground(false, `Lỗi: ${err.message}`, Date.now() - startTime);
+      }
+    }
+  }
+
+  function finishMediaPlayground(ok, statusText, ms) {
+    $("#play-media-submit").disabled = false;
+    $("#play-media-cancel").hidden = true;
+    state.play.abort = null;
+    if (state.play.pollTimer) { clearInterval(state.play.pollTimer); state.play.pollTimer = null; }
+    $("#play-status-dot").className = ok ? "pulse ok" : "pulse err";
+    $("#play-status-text").textContent = statusText;
+    if (ms != null) $("#play-time").textContent = fmtMs(ms);
+    const chosenAcc = $("#play-media-account")?.value;
+    const accBadge = $("#play-account-used");
+    if (accBadge) {
+      if (chosenAcc) {
+        accBadge.textContent = accountLabel(chosenAcc);
+        accBadge.hidden = false;
+      } else {
+        accBadge.hidden = true;
+      }
+    }
+  }
+
   // ---- routing: #page or #requests?key=..&account=.. ----
-  const loaders = {overview: loadOverview, accounts: loadAccountsPage, keys: loadKeys, requests: loadRequests};
+  const loaders = {overview: loadOverview, accounts: loadAccountsPage, keys: loadKeys, requests: loadRequests, playground: loadPlayground};
   function parseHash() {
     const [page, query] = location.hash.replace(/^#/, "").split("?");
     return {page: loaders[page] ? page : "", params: new URLSearchParams(query || "")};

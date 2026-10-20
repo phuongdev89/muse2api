@@ -21,6 +21,7 @@
 - [Architecture](#architecture)
 - [Project layout](#project-layout)
 - [Quick start](#quick-start)
+- [API Reference & Swagger](#api-reference--swagger)
 - [API examples](#api-examples)
 - [Configuration](#configuration)
 - [Roadmap](#roadmap)
@@ -31,6 +32,12 @@
 ## Overview
 
 muse2api turns muse.ai's chat, text-to-image and text-to-video features into standard OpenAI endpoints (`/v1/chat/completions`, `/v1/images/generations`, ...). Existing OpenAI SDKs and clients such as ChatGPT-Next-Web, LobeChat or Cherry Studio work by just changing their `base_url`.
+
+- **Swagger UI**: [http://localhost:18610/docs](http://localhost:18610/docs)
+- **ReDoc**: [http://localhost:18610/redoc](http://localhost:18610/redoc)
+- **Web Dashboard**: [http://localhost:18610/dashboard](http://localhost:18610/dashboard)
+- **Playground**: [http://localhost:18610/playground](http://localhost:18610/playground)
+- **Detailed Documentation**: [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md)
 
 The project focuses on **clean engineering and easy collaboration**:
 
@@ -158,6 +165,12 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
+Compose sets the server host to `0.0.0.0` and the Chromium path to
+`/usr/bin/chromium`, overriding local `.env` values. It also sets
+`MUSE2API_BROWSER_NO_SANDBOX=true` because the default Docker environment can
+block Chromium sandbox namespaces. Chromium still runs as the non-root `muse`
+user, but its internal sandbox is disabled in this configuration.
+
 ### Use a real account (browser driver)
 
 1. Install Chromium or Chrome and set `MUSE2API_DRIVER=browser` in `.env`.
@@ -173,7 +186,7 @@ Every `/v1/*` endpoint requires the header `Authorization: Bearer <API_KEY>`. Th
 ```bash
 curl http://localhost:18610/v1/chat/completions \
   -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
-  -d '{"model":"gpt-4o","messages":[{"role":"user","content":"Hello"}],"stream":true}'
+  -d '{"model":"muse-chat","messages":[{"role":"user","content":"Hello"}],"stream":true}'
 ```
 
 **OpenAI Python SDK**
@@ -257,7 +270,7 @@ curl http://localhost:18610/admin/accounts \
 | Method | Path | Description |
 |---|---|---|
 | GET | `/healthz` · `/readyz` | Liveness · readiness (driver state and available accounts) |
-| GET | `/v1/models` | Model list, including aliases such as `gpt-4o` and `dall-e-3` |
+| GET | `/v1/models` | Model list, including aliases such as `muse-chat` |
 | POST | `/v1/chat/completions` | Chat, streaming and non-streaming |
 | POST | `/v1/images/generations` · GET `/v1/images/generations/{id}` | Text to image (optional `image` references), returns `url` or `b64_json`; `"async": true` returns a task to poll |
 | POST | `/v1/images/edits` | Multipart `image`/`image[]` files + `prompt`, OpenAI-compatible |

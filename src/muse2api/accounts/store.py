@@ -46,7 +46,10 @@ class JsonAccountStore:
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(payload)
-            os.chmod(tmp, 0o600)
+            try:
+                os.chmod(tmp, 0o600)
+            except OSError:
+                pass
             os.replace(tmp, self.path)
         except BaseException:
             if os.path.exists(tmp):

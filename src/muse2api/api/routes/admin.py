@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, Query
 from ... import __version__
 from ...accounts.keepalive import renew_account
 from ...accounts.model import Account, AccountStatus
-from ...auth.keys import ApiKey
+from ...auth.keys import ApiKey, _DISPLAY_LEN, hash_key
 from ...errors import InvalidRequest, Muse2APIError, NotFound
 from ...services.container import Services
 from ...upstream.muse import missing_session_cookies
@@ -206,7 +206,15 @@ async def list_keys(svc: Services = Depends(get_services)) -> dict:
     usage = {r["key_id"]: r for r in (await svc.requests.key_usage())["data"]}
     return {
         "data": [{**k.public(), "usage": _usage(usage.get(k.id))} for k in svc.keys.all()],
-        "builtin": [{"id": b, "name": b, "usage": _usage(usage.get(b))} for b in BUILTIN_KEYS],
+        "builtin": [
+            {
+                "id": b,
+                "name": b,
+                "key": svc.settings.api_key if b == "legacy" else svc.settings.effective_admin_key,
+                "usage": _usage(usage.get(b)),
+            }
+            for b in BUILTIN_KEYS
+        ],
     }
 
 
@@ -218,8 +226,9 @@ async def key_usage(svc: Services = Depends(get_services)) -> dict:
 
 @router.post("/keys")
 async def create_key(body: KeyCreate, svc: Services = Depends(get_services)) -> dict:
-    key, plaintext = await svc.keys.create(body.name.strip(), body.note)
-    # The only time the plaintext key is ever returned.
+    key, plaintext = await svc.keys.create(
+        body.name.strip(), body.note, custom_key=body.key or ""
+    )
     return {"key": key.public(), "api_key": plaintext}
 
 
@@ -232,6 +241,11 @@ async def update_key(key_id: str, body: KeyUpdate, svc: Services = Depends(get_s
         key.note = body.note
     if body.revoked is not None:
         key.revoked = body.revoked
+    if body.key is not None and body.key.strip():
+        new_key = body.key.strip()
+        key.key = new_key
+        key.prefix = new_key[:_DISPLAY_LEN]
+        key.hash = hash_key(new_key)
     await svc.keys.save()
     return {"key": key.public()}
 

@@ -33,6 +33,7 @@ async def create_video(body: VideoCreateRequest, request: Request,
     request.state.model = body.model  # logged even if it does not resolve
     spec = resolve_model(body.model, "video")
     request.state.model = body.model or spec.id
+    account_id = request.headers.get("x-account-id") or request.query_params.get("account_id")
     frame_ref = body.image or body.input_reference
     first_frame = InputImage(*(await load_image_ref(frame_ref))) if frame_ref else None
     base = public_base(request)
@@ -41,7 +42,8 @@ async def create_video(body: VideoCreateRequest, request: Request,
         req = VideoRequest(prompt=body.prompt, model=spec.id, size=body.size,
                            duration=body.duration or body.seconds, first_frame=first_frame,
                            timeout=svc.settings.video_timeout, on_progress=progress)
-        result = await svc.gateway.generate_video(req)
+        result = (await svc.gateway.generate_video(req, account_id=account_id)
+                  if account_id else await svc.gateway.generate_video(req))
         name = svc.media.save(result.data, result.mime, prefix="vid")
         return {"url": f"{base}/v1/media/{name}", "mime": result.mime,
                 "width": result.width, "height": result.height}

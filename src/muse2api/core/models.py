@@ -29,17 +29,7 @@ MODELS: dict[str, ModelSpec] = {
 
 # Popular client-side model names are routed to the closest muse model so that
 # existing OpenAI tooling works without reconfiguration.
-ALIASES: dict[str, str] = {
-    "gpt-4o": "muse-chat",
-    "gpt-4o-mini": "muse-chat",
-    "gpt-4.1": "muse-chat",
-    "gpt-5": "muse-chat",
-    "claude-sonnet-4": "muse-chat",
-    "deepseek-chat": "muse-chat",
-    "dall-e-3": "muse-image",
-    "gpt-image-1": "muse-image",
-    "sora": "muse-video",
-}
+ALIASES: dict[str, str] = {}
 
 DEFAULT_BY_KIND: dict[ModelKind, str] = {
     "chat": "muse-chat",

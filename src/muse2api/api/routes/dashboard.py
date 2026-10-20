@@ -10,7 +10,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from fastapi import APIRouter
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 router = APIRouter(tags=["dashboard"])
 
@@ -27,3 +27,8 @@ async def dashboard() -> HTMLResponse:
     return HTMLResponse(_html(), headers={"Cache-Control": "no-cache",
                                           "X-Frame-Options": "DENY",
                                           "Referrer-Policy": "no-referrer"})
+
+
+@router.get("/playground", include_in_schema=False)
+async def playground() -> RedirectResponse:
+    return RedirectResponse(url="/dashboard#playground")

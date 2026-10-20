@@ -45,6 +45,15 @@ def _content_to_text(content: Any, images: list[str]) -> str:
                 ref = ref.get("url")
             if ref:
                 images.append(ref)
+        elif ptype in ("input_file", "file", "document"):
+            finfo = part.get("file") or part.get("file_url") or part
+            if isinstance(finfo, dict):
+                ref = finfo.get("data") or finfo.get("url")
+                name = finfo.get("name") or finfo.get("filename") or ""
+                if ref:
+                    images.append(f"{ref}#filename={name}" if name and "#filename=" not in ref else ref)
+            elif isinstance(finfo, str):
+                images.append(finfo)
     return "\n".join(p for p in parts if p)
 
 

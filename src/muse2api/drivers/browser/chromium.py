@@ -35,12 +35,13 @@ def find_chromium(configured: str = "") -> str:
 
 class ChromiumProcess:
     def __init__(self, executable: str, port: int, profile_dir: Path, headless: bool = True,
-                 proxy: str = ""):
+                 proxy: str = "", no_sandbox: bool = False):
         self.executable = executable
         self.port = port
         self.profile_dir = profile_dir
         self.headless = headless
         self.proxy = proxy
+        self.no_sandbox = no_sandbox
         self.proc: asyncio.subprocess.Process | None = None
 
     @property
@@ -84,7 +85,7 @@ class ChromiumProcess:
             args.insert(1, f"--proxy-server={self.proxy}")
         if self.headless:
             args[1:1] = ["--headless=new", "--disable-gpu"]
-        if hasattr(os, "geteuid") and os.geteuid() == 0:
+        if self.no_sandbox or (hasattr(os, "geteuid") and os.geteuid() == 0):
             args.insert(1, "--no-sandbox")
 
         log.info("launching Chromium: %s", self.executable)

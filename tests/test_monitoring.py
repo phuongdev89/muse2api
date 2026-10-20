@@ -26,13 +26,15 @@ def test_key_lifecycle(client, admin, settings):
 
     # Only the hash is persisted.
     stored = settings.keys_file.read_text(encoding="utf-8")
-    assert plaintext not in stored
+    assert plaintext in stored
+    assert json.loads(stored)[0]["key"] == plaintext
     assert json.loads(stored)[0]["hash"] == hash_key(plaintext)
 
     assert client.get("/v1/models", headers=_bearer(plaintext)).status_code == 200
     listed = client.get("/admin/keys", headers=admin).json()["data"]
     assert [k["name"] for k in listed] == ["alice"]
     assert "hash" not in listed[0]
+    assert listed[0]["key"] == plaintext
     assert listed[0]["last_used_at"] > 0
 
     r = client.patch(f"/admin/keys/{key['id']}", headers=admin, json={"revoked": True})
@@ -47,6 +49,21 @@ def test_key_lifecycle(client, admin, settings):
     assert client.delete(f"/admin/keys/{key['id']}", headers=admin).status_code == 200
     assert client.get("/v1/models", headers=_bearer(plaintext)).status_code == 401
     assert client.delete(f"/admin/keys/{key['id']}", headers=admin).status_code == 404
+
+
+def test_custom_api_key_and_builtin_keys(client, admin):
+    r = client.post("/admin/keys", headers=admin, json={"name": "custom", "key": "sk-my-custom-key-123"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["api_key"] == "sk-my-custom-key-123"
+    assert body["key"]["key"] == "sk-my-custom-key-123"
+
+    assert client.get("/v1/models", headers=_bearer("sk-my-custom-key-123")).status_code == 200
+
+    keys_res = client.get("/admin/keys", headers=admin).json()
+    builtin_map = {b["id"]: b for b in keys_res["builtin"]}
+    assert "key" in builtin_map["legacy"]
+    assert "key" in builtin_map["admin"]
 
 
 def test_keys_require_admin(client, auth):

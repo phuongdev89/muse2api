@@ -76,7 +76,25 @@ def create_app(settings: Settings | None = None, driver: MuseDriver | None = Non
             await services.keys.flush()
             await services.requests.close()
 
-    app = FastAPI(title="muse2api", version=__version__, lifespan=lifespan)
+    openapi_tags = [
+        {"name": "chat", "description": "OpenAI-compatible chat completion endpoints."},
+        {"name": "images", "description": "Text-to-image and image editing endpoints."},
+        {"name": "videos", "description": "Text-to-video and image-to-video generation endpoints."},
+        {"name": "models", "description": "List available and alias models."},
+        {"name": "media", "description": "Access generated media files."},
+        {"name": "admin", "description": "Administrative endpoints for accounts, keys, and metrics."},
+        {"name": "health", "description": "Health and readiness probe endpoints."},
+    ]
+
+    app = FastAPI(
+        title="muse2api",
+        description="OpenAI-compatible gateway and proxy for muse.ai services (Chat, Images, Videos).",
+        version=__version__,
+        openapi_tags=openapi_tags,
+        docs_url="/docs",
+        redoc_url="/redoc",
+        lifespan=lifespan,
+    )
     app.state.services = services
 
     @app.exception_handler(Muse2APIError)

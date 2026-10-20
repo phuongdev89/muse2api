@@ -87,9 +87,11 @@ class AccountUpdate(BaseModel):
 class KeyCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     note: str = Field(default="", max_length=500)
+    key: str | None = Field(default=None, max_length=128)
 
 
 class KeyUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
     note: str | None = Field(default=None, max_length=500)
     revoked: bool | None = None
+    key: str | None = Field(default=None, min_length=1, max_length=128)

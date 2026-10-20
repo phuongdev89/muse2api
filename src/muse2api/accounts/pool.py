@@ -165,7 +165,32 @@ class AccountPool:
         return any(a.id not in excluded and a.enabled and a.status != AccountStatus.INVALID
                    for a in self._accounts.values())
 
-    async def acquire(self, *, exclude: Iterable[str] = (), hint: str | None = None) -> Account:
+    async def acquire(
+        self,
+        *,
+        exclude: Iterable[str] = (),
+        hint: str | None = None,
+        account_id: str | None = None,
+    ) -> Account:
+        if account_id:
+            acc = self._accounts.get(account_id)
+            if not acc:
+                raise NoAccountAvailable(f"account {account_id} not found in pool")
+            deadline = time.monotonic() + self.acquire_timeout
+            async with self._cond:
+                while True:
+                    if self._inflight[acc.id] < self.max_concurrency:
+                        self._inflight[acc.id] += 1
+                        acc.last_used_at = time.time()
+                        return acc
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise NoAccountAvailable(f"account {account_id} is busy, try again later")
+                    try:
+                        await asyncio.wait_for(self._cond.wait(), timeout=remaining)
+                    except asyncio.TimeoutError:
+                        continue
+
         exclude = tuple(exclude)
         deadline = time.monotonic() + self.acquire_timeout
         async with self._cond:
@@ -224,9 +249,13 @@ class AccountPool:
 
     @asynccontextmanager
     async def lease(
-        self, *, exclude: Iterable[str] = (), hint: str | None = None
+        self,
+        *,
+        exclude: Iterable[str] = (),
+        hint: str | None = None,
+        account_id: str | None = None,
     ) -> AsyncIterator[Lease]:
-        acc = await self.acquire(exclude=exclude, hint=hint)
+        acc = await self.acquire(exclude=exclude, hint=hint, account_id=account_id)
         lease = Lease(acc)
         try:
             yield lease

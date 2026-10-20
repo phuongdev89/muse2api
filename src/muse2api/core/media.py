@@ -134,19 +134,30 @@ async def _fetch_public_image(url: str, *, timeout: float) -> tuple[bytes, str]:
         raise InvalidRequest("image_url exceeded redirect limit")
 
 
-async def load_image_ref(ref: str, *, timeout: float = 20.0) -> tuple[bytes, str]:
-    """Decode a data URL or download an http(s) URL. Returns ``(bytes, mime)``."""
+async def load_image_ref(ref: str, *, timeout: float = 20.0) -> tuple[bytes, str, str]:
+    """Decode a data URL or download an http(s) URL. Returns ``(bytes, mime, filename)``."""
     ref = ref.strip()
+    filename = ""
+    if "#filename=" in ref:
+        ref, _, filename = ref.partition("#filename=")
     if ref.startswith("data:"):
         header, _, payload = ref.partition(",")
-        mime = header[5:].split(";")[0] or "image/png"
+        mime_part = header[5:]
+        mime = mime_part.split(";")[0] or "image/png"
+        if not filename and "name=" in mime_part:
+            for param in mime_part.split(";"):
+                if param.strip().startswith("name="):
+                    filename = param.strip().split("=", 1)[1].strip('"\'')
         try:
-            return base64.b64decode(payload), mime
+            return base64.b64decode(payload), mime, filename
         except ValueError as exc:
             raise InvalidRequest("invalid base64 image data") from exc
     if ref.startswith(("http://", "https://")):
-        return await _fetch_public_image(ref, timeout=timeout)
+        data, mime = await _fetch_public_image(ref, timeout=timeout)
+        if not filename:
+            filename = Path(urllib.parse.urlsplit(ref).path).name
+        return data, mime, filename
     try:
-        return base64.b64decode(ref, validate=True), "image/png"
+        return base64.b64decode(ref, validate=True), "image/png", filename
     except ValueError as exc:
         raise InvalidRequest("image must be a data URL, http(s) URL or base64 string") from exc

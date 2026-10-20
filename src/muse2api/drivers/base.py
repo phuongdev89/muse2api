@@ -25,6 +25,7 @@ ProgressCallback = Callable[[int], None]
 class InputImage:
     data: bytes
     mime: str = "image/png"
+    filename: str = ""
 
 
 @dataclass

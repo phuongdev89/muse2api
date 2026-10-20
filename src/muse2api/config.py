@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     chromium_path: str = ""
     cdp_port: int = 19210
     headless: bool = True
+    browser_no_sandbox: bool = False
     browser_proxy: str = Field(
         default="",
         description="Proxy for the browser only, e.g. socks5://127.0.0.1:10808 or http://10.144.1.10:8080. "
@@ -135,7 +136,10 @@ class Settings(BaseSettings):
                 return key
         key = "m2a-" + secrets.token_urlsafe(24)
         self.key_file.write_text(key + "\n", encoding="utf-8")
-        self.key_file.chmod(0o600)
+        try:
+            self.key_file.chmod(0o600)
+        except OSError:
+            pass
         self.api_key = key
         return key
 

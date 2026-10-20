@@ -17,6 +17,7 @@ import asyncio
 import base64
 import contextlib
 import logging
+import mimetypes
 import time
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
@@ -109,6 +110,7 @@ class BrowserDriver(MuseDriver):
         self._chromium = ChromiumProcess(
             exe, self.settings.cdp_port, self.settings.profile_dir, self.settings.headless,
             proxy=self.settings.browser_proxy,
+            no_sandbox=self.settings.browser_no_sandbox,
         )
         ws_url = await self._chromium.start()
         self._browser = await CDPSession.connect(ws_url)
@@ -349,12 +351,18 @@ class BrowserDriver(MuseDriver):
     # ------------------------------------------------------------ input
     async def _attach(self, tab: _Tab, images: list[InputImage]) -> None:
         for idx, img in enumerate(images):
-            ext = img.mime.split("/")[-1].replace("jpeg", "jpg")
+            if img.filename:
+                fname = img.filename
+            else:
+                ext = mimetypes.guess_extension(img.mime) or ".bin"
+                if ext in (".jpe", ".jpeg"):
+                    ext = ".jpg"
+                fname = f"input_{idx}{ext}"
             res = await tab.session.evaluate(
-                dom.attach_file(base64.b64encode(img.data).decode(), img.mime, f"input_{idx}.{ext}")
+                dom.attach_file(base64.b64encode(img.data).decode(), img.mime, fname)
             )
             if not (res or {}).get("ok"):
-                raise UpstreamError(f"failed to attach image: {(res or {}).get('err')}")
+                raise UpstreamError(f"failed to attach file: {(res or {}).get('err')}")
         if images:
             await asyncio.sleep(1.0)
 

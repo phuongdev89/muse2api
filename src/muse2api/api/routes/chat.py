@@ -57,7 +57,9 @@ async def chat_completions(body: ChatCompletionRequest, request: Request,
     completion_id = "chatcmpl-" + uuid.uuid4().hex[:24]
     created = int(time.time())
     model_name = body.model or spec.id
-    stream = svc.gateway.chat_stream(req)
+    account_id = request.headers.get("x-account-id") or request.query_params.get("account_id")
+    stream = (svc.gateway.chat_stream(req, account_id=account_id)
+              if account_id else svc.gateway.chat_stream(req))
 
     if not body.stream:
         text = "".join([d async for d in stream])

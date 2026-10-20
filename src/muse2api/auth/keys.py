@@ -1,8 +1,9 @@
 """Client API keys, persisted to ``data/keys.json``.
 
-Only a SHA-256 hash and a short display prefix are stored; the plaintext key is
-returned once, when it is created. ``last_used_at`` is kept in memory and
-written out by ``flush()`` so that authenticating a request never touches disk.
+Plaintext key, display prefix, and SHA-256 hash are stored so keys can be
+viewed, copied, or managed in the dashboard at any time. ``last_used_at`` is
+kept in memory and written out by ``flush()`` so that authenticating a request
+never touches disk.
 """
 
 from __future__ import annotations
@@ -39,6 +40,7 @@ class ApiKey(BaseModel):
     id: str = Field(default_factory=lambda: "key_" + uuid.uuid4().hex[:10])
     name: str
     prefix: str
+    key: str = ""
     hash: str
     created_at: float = Field(default_factory=time.time)
     last_used_at: float = 0.0
@@ -63,6 +65,16 @@ class KeyStore:
         raw = await asyncio.to_thread(self.path.read_text, encoding="utf-8")
         if raw.strip():
             self._keys = {k.id: k for k in (ApiKey.model_validate(i) for i in json.loads(raw))}
+            migrated = False
+            for k in self._keys.values():
+                if not k.key:
+                    rest = secrets.token_urlsafe(24)
+                    needed = 36 - len(k.prefix)
+                    k.key = k.prefix + rest[:needed] if needed > 0 else k.prefix
+                    k.hash = hash_key(k.key)
+                    migrated = True
+            if migrated:
+                await self.save()
 
     def all(self) -> list[ApiKey]:
         return sorted(self._keys.values(), key=lambda k: k.created_at)
@@ -89,10 +101,15 @@ class KeyStore:
             key.last_used_at = now
             self._dirty = True
 
-    async def create(self, name: str, note: str = "") -> tuple[ApiKey, str]:
-        plaintext = generate_key()
-        key = ApiKey(name=name, note=note, prefix=plaintext[:_DISPLAY_LEN],
-                     hash=hash_key(plaintext))
+    async def create(self, name: str, note: str = "", custom_key: str = "") -> tuple[ApiKey, str]:
+        plaintext = custom_key.strip() or generate_key()
+        key = ApiKey(
+            name=name,
+            note=note,
+            prefix=plaintext[:_DISPLAY_LEN],
+            key=plaintext,
+            hash=hash_key(plaintext),
+        )
         self._keys[key.id] = key
         await self.save()
         return key, plaintext
@@ -125,7 +142,10 @@ class KeyStore:
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(payload)
-            os.chmod(tmp, 0o600)
+            try:
+                os.chmod(tmp, 0o600)
+            except OSError:
+                pass
             os.replace(tmp, self.path)
         except BaseException:
             if os.path.exists(tmp):
