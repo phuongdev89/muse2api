@@ -93,6 +93,7 @@ async def chat_completions(body: ChatCompletionRequest, request: Request,
                 # first_token_timeout). Send SSE comment heartbeats until it
                 # arrives. asyncio.wait (not wait_for) polls so the in-flight
                 # __anext__ is never cancelled between heartbeats.
+                yield b": keepalive\n\n"
                 pending = asyncio.ensure_future(anext(stream))
                 try:
                     while True:

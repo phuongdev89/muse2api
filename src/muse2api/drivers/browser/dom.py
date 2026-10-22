@@ -48,7 +48,7 @@ CHAT_STATE = f"""(() => {{
     return (s.overflowY === 'auto' || s.overflowY === 'scroll') && e.scrollHeight > e.clientHeight + 50;
   }});
   scrollers.forEach(e => {{ e.scrollTop = e.scrollHeight; }});
-  const userBubbles = [...document.querySelectorAll('[data-testid*="user-bubble"], [data-testid*="user-message"], [class*="hatch-user-bubble"]')];
+  const userBubbles = [...document.querySelectorAll('[data-testid*="user-bubble"], [data-testid*="user-message"], [data-testid*="chat-message-user"], [class*="hatch-user-bubble"], [class*="user-bubble"]')];
   const bubbles = [...document.querySelectorAll({q(AGENT_BUBBLE)})];
   const last = bubbles.length ? (bubbles[bubbles.length - 1].innerText || '').trim() : '';
   const atts = [...document.querySelectorAll({q(ATTACHMENT)})].map(a => {{
@@ -129,7 +129,11 @@ CLICK_SEND = """(() => {
   return 'clicked';
 })()"""
 
-INPUT_EMPTY = f"!(document.querySelector({q(INPUT)}) || {{value: ''}}).value"
+INPUT_EMPTY = f"""(() => {{
+  const el = document.querySelector({q(INPUT)}) || document.querySelector('[contenteditable="true"]');
+  if (!el) return true;
+  return el.tagName === 'TEXTAREA' ? !(el.value || '').trim() : !(el.innerText || '').trim();
+}})()"""
 
 
 def attach_file(b64: str, mime: str, filename: str) -> str:

@@ -406,11 +406,15 @@ class BrowserDriver(MuseDriver):
                          tab.thread_url or "new thread", snippet)
         return state
 
-    async def _prepare(self, tab: _Tab, prompt: str, images: list[InputImage]) -> dict:
+    async def _prepare(
+        self, tab: _Tab, prompt: str, images: list[InputImage], req: Any = None
+    ) -> dict:
         await self._new_thread(tab)
         base = await self._state(tab)
         await self._attach(tab, images)
         await self._send(tab, prompt)
+        if req is not None and hasattr(req, "submitted"):
+            req.submitted = True
         await self._wait_for_submission(tab, base)
         return base
 
@@ -483,7 +487,8 @@ class BrowserDriver(MuseDriver):
             base = await self._state(tab)
             await self._attach(tab, images)
             await self._send(tab, prompt)
-            await self._wait_for_submission(tab, base)
+            req.submitted = True
+            await self._wait_for_submission(tab, base, timeout=req.first_token_timeout)
             return tab, base
         except CDPError as exc:
             await self._close_tab(tab)
@@ -494,10 +499,11 @@ class BrowserDriver(MuseDriver):
             await self._checkin(tab)
             raise
 
-    async def _wait_for_submission(self, tab: _Tab, base: dict) -> None:
+    async def _wait_for_submission(self, tab: _Tab, base: dict, timeout: float | None = None) -> None:
         """Wait until Muse visibly accepts a sent prompt before polling its reply."""
         baseline_count = int(base.get("userCount", 0))
-        deadline = time.monotonic() + min(10.0, self.settings.first_token_timeout)
+        wait_limit = timeout if timeout is not None else max(45.0, self.settings.first_token_timeout)
+        deadline = time.monotonic() + wait_limit
         while time.monotonic() < deadline:
             state = await self._state(tab)
             if state.get("generating") or int(state.get("userCount", 0)) > baseline_count:
@@ -693,11 +699,11 @@ class BrowserDriver(MuseDriver):
                            width=att.get("w") or None, height=att.get("h") or None)
 
     async def _generate(self, account: Account, prompt: str, images: list[InputImage],
-                        kind: str, timeout: float, on_progress, cancel) -> MediaResult:
+                        kind: str, timeout: float, on_progress, cancel, req: Any = None) -> MediaResult:
         # Media always starts a fresh thread, so keep tabs holding a chat for chats.
         tab = await self._checkout(account, prefer=lambda t: not t.has_state)
         try:
-            base = await self._prepare(tab, prompt, images)
+            base = await self._prepare(tab, prompt, images, req=req)
             att = await self._wait_media(tab, base, kind, timeout, on_progress, cancel)
             return await self._download(tab, att, kind)
         except CDPError as exc:
@@ -711,7 +717,7 @@ class BrowserDriver(MuseDriver):
         results = []
         for _ in range(max(1, req.n)):
             r = await self._generate(account, prompt, req.reference_images, "image",
-                                     req.timeout, req.on_progress, req.cancel)
+                                     req.timeout, req.on_progress, req.cancel, req=req)
             r.revised_prompt = req.prompt
             results.append(r)
         return results
@@ -720,7 +726,7 @@ class BrowserDriver(MuseDriver):
         prompt = self._media_prompt(req.prompt, "video", req.size, req.duration)
         images = [req.first_frame] if req.first_frame else []
         return await self._generate(account, prompt, images, "video", req.timeout,
-                                    req.on_progress, req.cancel)
+                                    req.on_progress, req.cancel, req=req)
 
     # ------------------------------------------------------------ session
     async def renew_session(self, account: Account) -> SessionInfo:

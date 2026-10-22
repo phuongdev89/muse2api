@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from ..accounts.model import Account
 from ..accounts.pool import AccountPool, Lease
@@ -43,8 +43,9 @@ class Gateway:
         attempt: int,
         tried: list[str],
         account_id: str | None = None,
+        submitted: bool = False,
     ) -> bool:
-        if account_id:
+        if account_id or submitted:
             return False
         # With no other account to switch to, a retry would only replace the real
         # error with "no usable account in pool".
@@ -66,8 +67,12 @@ class Gateway:
                 except UpstreamError as exc:
                     lease.fail(exc)
                     tried.append(lease.account.id)
-                    # Once text reached the client we cannot transparently switch accounts.
-                    if emitted or not self._should_retry(exc, attempt, tried, account_id=account_id):
+                    # Once text reached the client or the prompt was submitted upstream,
+                    # we cannot switch accounts.
+                    submitted = getattr(req, "submitted", False)
+                    if emitted or submitted or not self._should_retry(
+                        exc, attempt, tried, account_id=account_id, submitted=submitted
+                    ):
                         raise
                     log.warning("chat failed on %s (%s), failing over", lease.account.id, exc)
 
@@ -77,6 +82,7 @@ class Gateway:
         hint: str | None = None,
         *,
         account_id: str | None = None,
+        req: Any = None,
     ) -> T:
         tried: list[str] = []
         for attempt in range(self.max_failover + 1):
@@ -86,7 +92,10 @@ class Gateway:
                 except UpstreamError as exc:
                     lease.fail(exc)
                     tried.append(lease.account.id)
-                    if not self._should_retry(exc, attempt, tried, account_id=account_id):
+                    submitted = getattr(req, "submitted", False) if req else False
+                    if submitted or not self._should_retry(
+                        exc, attempt, tried, account_id=account_id, submitted=submitted
+                    ):
                         raise
                     log.warning("call failed on %s (%s), failing over", lease.account.id, exc)
         raise AssertionError("unreachable")
@@ -95,12 +104,12 @@ class Gateway:
         self, req: ImageRequest, *, account_id: str | None = None
     ) -> list[MediaResult]:
         return await self._run(
-            lambda acc: self.driver.generate_image(acc, req), account_id=account_id
+            lambda acc: self.driver.generate_image(acc, req), account_id=account_id, req=req
         )
 
     async def generate_video(
         self, req: VideoRequest, *, account_id: str | None = None
     ) -> MediaResult:
         return await self._run(
-            lambda acc: self.driver.generate_video(acc, req), account_id=account_id
+            lambda acc: self.driver.generate_video(acc, req), account_id=account_id, req=req
         )

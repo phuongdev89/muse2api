@@ -80,6 +80,7 @@ class UpstreamQuotaError(UpstreamError):
 class UpstreamTimeout(UpstreamError):
     status_code = 504
     code = "upstream_timeout"
+    retryable = False
 
 
 class UpstreamRefused(UpstreamError):

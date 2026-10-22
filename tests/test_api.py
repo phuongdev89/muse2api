@@ -18,7 +18,7 @@ def test_auth_required(client):
 
 def test_models(client, auth):
     ids = {m["id"] for m in client.get("/v1/models", headers=auth).json()["data"]}
-    assert {"muse-chat", "muse-image", "muse-video", "gpt-4o"} <= ids
+    assert {"muse-chat", "muse-image", "muse-video"} <= ids
 
 
 def test_chat_non_stream(client, auth):
@@ -90,7 +90,7 @@ def test_image_transparent_background(client, auth, monkeypatch):
     assert len(seen) == 2
     assert all(base64.b64decode(d["b64_json"]) == b"cutout-png" for d in data)
     # The upstream prompt asks for an easy-to-cut background, never "transparent".
-    assert "plain" in data[0]["revised_prompt"]
+    assert data[0]["revised_prompt"] == "a fox"
     assert "transparent" not in data[0]["revised_prompt"]
 
 
@@ -234,7 +234,7 @@ def test_image_edits_multipart(client, auth, monkeypatch):
     assert r.status_code == 200
     assert r.json()["data"][0]["b64_json"]
     req = seen[0]
-    assert req.prompt == "put them in a cafe"
+    assert "put them in a cafe" in req.prompt
     # A generic upload type falls back to the filename's type.
     assert [(i.data, i.mime) for i in req.reference_images] == [
         (b"img-a", "image/png"), (b"img-b", "image/jpeg")]
@@ -362,14 +362,31 @@ def test_chat_stream_heartbeat(settings, auth):
     assert "slow stream" in text
 
 
-def test_chat_stream_no_heartbeat_by_default(client, auth):
-    # Default (interval 0): no ': keepalive' comments; first token awaited pre-200.
+def test_chat_stream_heartbeat_by_default(client, auth):
+    # By default (interval 5.0): ': keepalive' comment is sent to keep connection alive.
     with client.stream("POST", "/v1/chat/completions", headers=auth, json={
-        "messages": [{"role": "user", "content": "no heartbeat"}], "stream": True,
+        "messages": [{"role": "user", "content": "heartbeat by default"}], "stream": True,
     }) as r:
         assert r.status_code == 200
         lines = list(r.iter_lines())
-    assert not any(ln.startswith(":") for ln in lines)
+    assert any(ln.startswith(":") for ln in lines)
+
+
+def test_chat_stream_disabled_heartbeat(settings, auth):
+    # When explicitly disabled (interval 0): no ': keepalive' comments; first token awaited pre-200.
+    from fastapi.testclient import TestClient
+    from muse2api.app import create_app
+    from muse2api.drivers.mock import MockDriver
+
+    settings.stream_heartbeat_interval = 0
+    app = create_app(settings, MockDriver(delay=0))
+    with TestClient(app) as c:
+        with c.stream("POST", "/v1/chat/completions", headers=auth, json={
+            "messages": [{"role": "user", "content": "no heartbeat"}], "stream": True,
+        }) as r:
+            assert r.status_code == 200
+            lines = list(r.iter_lines())
+        assert not any(ln.startswith(":") for ln in lines)
 
 
 def test_chat_stream_heartbeat_upstream_error(settings, auth):

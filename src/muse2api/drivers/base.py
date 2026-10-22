@@ -39,6 +39,7 @@ class ChatRequest:
     turns: list[tuple[str, str]] = field(default_factory=list)
     """Role/text pairs of the request, used to continue a hot page instead of resending history."""
     cancel: asyncio.Event | None = None
+    submitted: bool = False
 
 
 @dataclass
@@ -52,6 +53,7 @@ class ImageRequest:
     timeout: float = 240.0
     on_progress: ProgressCallback | None = None
     cancel: asyncio.Event | None = None
+    submitted: bool = False
 
 
 @dataclass
@@ -64,6 +66,7 @@ class VideoRequest:
     timeout: float = 600.0
     on_progress: ProgressCallback | None = None
     cancel: asyncio.Event | None = None
+    submitted: bool = False
 
 
 @dataclass
