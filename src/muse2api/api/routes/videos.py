@@ -31,6 +31,7 @@ def _task_view(task: Task) -> dict:
 async def create_video(body: VideoCreateRequest, request: Request,
                        svc: Services = Depends(get_services)) -> dict:
     request.state.model = body.model  # logged even if it does not resolve
+    request.state.request_text = body.prompt
     spec = resolve_model(body.model, "video")
     request.state.model = body.model or spec.id
     account_id = request.headers.get("x-account-id") or request.query_params.get("account_id")

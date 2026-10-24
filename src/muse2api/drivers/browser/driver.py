@@ -296,9 +296,16 @@ class BrowserDriver(MuseDriver):
     def _save_hot(self, tab: _Tab, account: Account, req: ChatRequest, url: str) -> None:
         if url:
             tab.thread_url = url
-        tab.hint = req.conversation_hint
-        tab.turns = list(req.turns)
+        # The returned Muse thread URL becomes the stable affinity key for the
+        # next request. A null first-request thread therefore cannot accidentally
+        # reuse an older conversation.
+        tab.hint = req.conversation_hint or tab.thread_url or None
+        if req.thread and tab.turns:
+            tab.turns = [*tab.turns, ("user", req.prompt)]
+        else:
+            tab.turns = list(req.turns)
         tab.image_count = len(req.images)
+        req.thread_url = tab.thread_url
         account.meta["hot_page"] = {
             "hint": req.conversation_hint or "",
             "turns": [list(turn) for turn in req.turns],
@@ -470,8 +477,9 @@ class BrowserDriver(MuseDriver):
             if not any(t.has_state for t in self._tabs.get(account.id, []) if t is not tab):
                 self._load_hot(tab, account)
             same_owner = (tab.hint or "") == (req.conversation_hint or "")
-            follow = followup_text(tab.turns, req.turns) if tab.turns and same_owner else None
-            if follow and len(req.images) >= tab.image_count and (
+            follow = followup_text(tab.turns, req.turns) if tab.turns and same_owner and not req.thread else None
+            direct_thread = bool(req.thread and same_owner and tab.thread_url)
+            if (follow or direct_thread) and len(req.images) >= tab.image_count and (
                 tab.thread_url or await self._live_continuation(tab)
             ):
                 if await self._on_thread(tab) or await self._live_continuation(tab):
@@ -479,7 +487,7 @@ class BrowserDriver(MuseDriver):
                 elif tab.thread_url:
                     log.info("reopening %s", tab.thread_url)
                     await self._open_saved(tab)
-                prompt = follow
+                prompt = follow or req.prompt
                 images = req.images[tab.image_count:]
             else:
                 log.info("opening a new thread")

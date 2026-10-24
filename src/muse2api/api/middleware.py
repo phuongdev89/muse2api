@@ -23,6 +23,7 @@ _POLL_RE = re.compile(r"^/v1/(?:images/generations|videos)/([^/]+)$")
 # Error bodies are small JSON; never buffer more than this.
 _MAX_ERROR_BODY = 8192
 _MAX_ERROR_LEN = 300
+_MAX_REQUEST_LEN = 2000
 
 
 def client_ip(scope: Scope) -> str | None:
@@ -117,9 +118,10 @@ class RequestLogMiddleware:
             record["latency_ms"] = int((time.perf_counter() - started) * 1000)
             if error_body and not record.get("error"):
                 record["error"] = _error_message(bytes(error_body))
-            for field in ("model", "key_id", "key_name", "task_id"):
+            for field in ("model", "request_text", "key_id", "key_name", "task_id"):
                 if state.get(field) is not None:
-                    record[field] = state[field]
+                    value = state[field]
+                    record[field] = value[:_MAX_REQUEST_LEN] if field == "request_text" and isinstance(value, str) else value
             # Shielded so a client disconnect (task cancellation) still logs the row.
             task = asyncio.create_task(self.request_log.add(record))
             self._pending.add(task)

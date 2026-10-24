@@ -23,7 +23,7 @@ class ChatCompletionRequest(_Lenient):
     messages: list[ChatMessage] = Field(min_length=1)
     stream: bool = False
     stream_options: dict[str, Any] | None = None
-    user: str | None = None
+    thread: str | None = None
     # Accepted for compatibility; muse.ai does not expose sampling or tool controls.
     temperature: float | None = None
     top_p: float | None = None

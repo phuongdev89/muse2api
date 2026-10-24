@@ -39,6 +39,7 @@ async def chat_completions(body: ChatCompletionRequest, request: Request,
     spec = resolve_model(body.model, "chat")
     request.state.model = body.model or spec.id
     flat = flatten_messages([m.model_dump() for m in body.messages])
+    request.state.request_text = flat.text
     if not flat.text and not flat.images:
         raise InvalidRequest("messages contain no text or images")
 
@@ -50,8 +51,9 @@ async def chat_completions(body: ChatCompletionRequest, request: Request,
         images=images,
         timeout=svc.settings.chat_timeout,
         first_token_timeout=svc.settings.first_token_timeout,
-        conversation_hint=body.user,
-        turns=message_turns([m.model_dump() for m in body.messages]),
+        conversation_hint=body.thread,
+        thread=body.thread,
+        turns=[] if body.thread else message_turns([m.model_dump() for m in body.messages]),
         cancel=cancel,
     )
     completion_id = "chatcmpl-" + uuid.uuid4().hex[:24]
@@ -70,6 +72,7 @@ async def chat_completions(body: ChatCompletionRequest, request: Request,
             "model": model_name,
             "choices": [{"index": 0, "message": {"role": "assistant", "content": text},
                          "finish_reason": "stop"}],
+            "thread": req.thread_url or body.thread,
             "usage": {
                 "prompt_tokens": _approx_tokens(flat.text),
                 "completion_tokens": _approx_tokens(text),
@@ -116,6 +119,8 @@ async def chat_completions(body: ChatCompletionRequest, request: Request,
                 produced += delta
                 yield _sse(chunk({"content": delta}))
             yield _sse(chunk({}, "stop"))
+            yield _sse({"id": completion_id, "object": "chat.completion.chunk", "created": created,
+                        "model": model_name, "thread": req.thread_url or body.thread, "choices": []})
             if (body.stream_options or {}).get("include_usage"):
                 usage = {"prompt_tokens": _approx_tokens(flat.text),
                          "completion_tokens": _approx_tokens(produced)}

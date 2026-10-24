@@ -26,7 +26,7 @@ log = logging.getLogger(__name__)
 # values so that writes from copied contexts (streaming body tasks) are still seen.
 current_record: ContextVar[dict[str, Any] | None] = ContextVar("current_record", default=None)
 
-COLUMNS = ("ts", "method", "path", "model", "key_id", "key_name", "account_id", "status_code",
+COLUMNS = ("ts", "method", "path", "model", "request_text", "key_id", "key_name", "account_id", "status_code",
            "latency_ms", "stream", "poll", "error", "client_ip", "user_agent", "task_id")
 
 _SCHEMA = """
@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS requests (
     method      TEXT    NOT NULL,
     path        TEXT    NOT NULL,
     model       TEXT,
+    request_text TEXT,
     key_id      TEXT,
     key_name    TEXT,
     account_id  TEXT,
@@ -55,7 +56,7 @@ CREATE INDEX IF NOT EXISTS idx_requests_task ON requests (task_id);
 """
 
 # Columns added after the first release; created on open when missing.
-_ADDED_COLUMNS = {"task_status": "TEXT", "task_ms": "INTEGER"}
+_ADDED_COLUMNS = {"request_text": "TEXT", "task_status": "TEXT", "task_ms": "INTEGER"}
 
 # A request failed if it got an HTTP error or its async task failed later.
 FAILED = "(status_code >= 400 OR task_status = 'failed')"

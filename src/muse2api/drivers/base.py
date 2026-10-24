@@ -36,6 +36,8 @@ class ChatRequest:
     timeout: float = 300.0
     first_token_timeout: float = 45.0
     conversation_hint: str | None = None
+    thread: str | None = None
+    thread_url: str | None = None
     turns: list[tuple[str, str]] = field(default_factory=list)
     """Role/text pairs of the request, used to continue a hot page instead of resending history."""
     cancel: asyncio.Event | None = None

@@ -1049,7 +1049,7 @@ code.mono-inline {
           <div class="tablewrap">
             <table>
               <thead><tr>
-                <th>Time</th><th>Method</th><th>Path</th><th class="hide-sm">Model</th><th>Key</th>
+                <th>Time</th><th>Method</th><th>Path</th><th>Request</th><th class="hide-sm">Model</th><th>Key</th>
                 <th class="hide-sm">Account</th><th class="num">Status</th><th class="num">Latency</th><th class="hide-sm">Client</th>
               </tr></thead>
               <tbody id="req-body"></tbody>
@@ -1098,6 +1098,7 @@ code.mono-inline {
                 <button type="button" class="btn sm ghost" id="chat-settings-btn" title="Cài đặt Chat (System Prompt, Streaming)">
                   <svg class="i"><use href="#i-auto"/></svg> Cài đặt
                 </button>
+                <input type="text" id="chat-thread-url" class="chat-thread-url" placeholder="Thread URL (để trống = tạo mới)" title="Thread URL của Muse">
               </div>
               <div class="chat-topbar-right">
                 <button type="button" class="btn sm ghost" id="chat-history-btn" aria-expanded="false">Lịch sử</button>
@@ -2238,13 +2239,14 @@ code.mono-inline {
         <td class="mono" title="${esc(fullTime(r.ts))}">${esc(clock(r.ts))}</td>
         <td class="mono">${esc(r.method)}</td>
         <td class="mono trunc" title="${esc(r.path)}">${esc(r.path)}${r.stream ? ` <span class="badge plain b-mute">stream</span>` : ""}${r.poll ? ` <span class="badge plain b-mute">poll</span>` : ""}</td>
+        <td class="trunc" title="${esc(r.request_text || "")}">${esc(r.request_text || "")}</td>
         <td class="hide-sm">${esc(r.model || "")}</td>
         <td>${esc(r.key_name || "")}</td>
         <td class="hide-sm trunc">${esc(accountLabel(r.account_id))}</td>
         <td class="num" title="${esc(r.error || "")}">${statusBadge(r.status_code)}${taskBadge(r)}</td>
         <td class="num">${esc(fmtMs(r.latency_ms))}</td>
         <td class="hide-sm mono">${esc(r.client_ip || "")}</td>
-      </tr>`).join("") || `<tr><td colspan="9" class="empty">Không có request nào khớp bộ lọc.</td></tr>`;
+      </tr>`).join("") || `<tr><td colspan="10" class="empty">Không có request nào khớp bộ lọc.</td></tr>`;
     const end = state.offset + res.data.length;
     $("#req-range").textContent = res.total ? `${state.offset + 1}–${end} / ${fmtNum(res.total)}` : "";
     $("#req-prev").disabled = state.offset === 0;
@@ -2253,7 +2255,7 @@ code.mono-inline {
 
   function showRequest(r) {
     const fields = [
-      ["ID", r.id], ["Time", fullTime(r.ts)], ["Method", r.method], ["Path", r.path],
+      ["ID", r.id], ["Time", fullTime(r.ts)], ["Method", r.method], ["Path", r.path], ["Request", r.request_text],
       ["Status", r.status_code], ["Latency", fmtMs(r.latency_ms)], ["Stream", r.stream ? "yes" : "no"],
       ["Poll", r.poll ? "yes" : "no"], ["Model", r.model], ["Key", r.key_name ? `${r.key_name} (${r.key_id})` : ""],
       ["Account", r.account_id ? `${accountLabel(r.account_id)} (${r.account_id})` : ""],
@@ -2333,6 +2335,7 @@ code.mono-inline {
           {id: "muse-video", kind: "video"}
         ];
       }
+      $("#chat-thread-url").value = currentThread.thread || "";
     }
     updatePlaygroundMode(state.play.mode);
   }
@@ -2763,10 +2766,11 @@ code.mono-inline {
       }
       persistPlayThreads();
       state.play.threads = state.play.threads.filter(t => t.messages?.length);
-      const thread = {id:newThreadId(), title:"Cuộc trò chuyện mới", updatedAt:Date.now(), messages:[]};
+      const thread = {id:newThreadId(), title:"Cuộc trò chuyện mới", updatedAt:Date.now(), messages:[], thread:""};
       state.play.threads.unshift(thread);
       state.play.conversationId = thread.id;
       state.play.chatMessages = thread.messages;
+      $("#chat-thread-url").value = "";
       state.play.fileSessionId = (state.play.fileSessionId || 0) + 1;
       state.play.readingFilesCount = 0;
       state.play.attachments = [];
@@ -2802,6 +2806,7 @@ code.mono-inline {
       if (!thread) return;
       state.play.conversationId = thread.id;
       state.play.chatMessages = thread.messages;
+      $("#chat-thread-url").value = thread.thread || "";
       state.play.attachments = [];
       renderChatAttachments();
       renderChatMessages();
@@ -3156,6 +3161,10 @@ code.mono-inline {
     };
     if (chosenAcc) headers["X-Account-ID"] = chosenAcc;
 
+    const activeThread = state.play.threads.find(t => t.id === conversationId);
+    const threadUrl = $("#chat-thread-url").value.trim();
+    if (activeThread) activeThread.thread = threadUrl;
+
     // Prepare API history
     const apiMessages = [];
     const sys = $("#chat-system-prompt") ? $("#chat-system-prompt").value.trim() : "";
@@ -3189,13 +3198,21 @@ code.mono-inline {
         apiMessages.push({role: "assistant", content: m.content});
       }
     }
+    // Muse already has the prior turns when a thread is supplied. Sending the
+    // local transcript again can duplicate megabytes of history and confuse the
+    // upstream conversation, so keep only the new user message (plus system).
+    if (threadUrl) {
+      const latest = apiMessages.filter(m => m.role === "user").at(-1);
+      apiMessages.splice(0, apiMessages.length, ...(sys ? [{role: "system", content: sys}] : []), ...(latest ? [latest] : []));
+    }
 
     const startTime = Date.now();
     try {
       const res = await fetch("/v1/chat/completions", {
         method: "POST",
         headers,
-        body: JSON.stringify({model, messages: apiMessages, stream: isStream, user: conversationId}),
+        body: JSON.stringify({model, messages: apiMessages, stream: isStream,
+          thread: threadUrl || null}),
         signal: controller.signal
       });
 
@@ -3223,6 +3240,10 @@ code.mono-inline {
             if (payload === "[DONE]") continue;
             try {
               const parsed = JSON.parse(payload);
+              if (parsed.thread) {
+                const active = state.play.threads.find(t => t.id === conversationId);
+                if (active) active.thread = parsed.thread;
+              }
               const delta = parsed.choices?.[0]?.delta?.content || "";
               asstMsg.content += delta;
               if (contentEl) {
@@ -3239,6 +3260,10 @@ code.mono-inline {
         renderPlayThreadHistory();
       } else {
         const data = await res.json();
+        if (data.thread) {
+          const active = state.play.threads.find(t => t.id === conversationId);
+          if (active) active.thread = data.thread;
+        }
         asstMsg.content = data.choices?.[0]?.message?.content || "(Không có phản hồi)";
         asstMsg.streaming = false;
         asstMsg.ms = Date.now() - startTime;
