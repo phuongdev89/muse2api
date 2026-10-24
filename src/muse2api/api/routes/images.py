@@ -169,6 +169,9 @@ async def edit_images(request: Request, svc: Services = Depends(get_services)) -
     if not files:
         raise InvalidRequest("at least one image file is required (field 'image' or 'image[]')")
     fields = {k: v for k, v in form.items() if isinstance(v, str) and k not in ("image", "image[]")}
+    if "async" in fields:
+        val = str(fields["async"]).strip().lower()
+        fields["async"] = val in ("true", "1", "yes")
     try:
         body = ImageGenerationRequest(**fields)
     except ValidationError as exc:
@@ -208,6 +211,9 @@ async def _image_action_request(request: Request, prompt: str, required: tuple[s
             uploads[field] = value
     fields = {k: v for k, v in form.items()
               if isinstance(v, str) and k not in (*required, *optional)}
+    if "async" in fields:
+        val = str(fields["async"]).strip().lower()
+        fields["async"] = val in ("true", "1", "yes")
     extra_prompt = str(form.get("prompt") or "").strip()
     if prompt_required and not extra_prompt:
         raise InvalidRequest("prompt is required")
@@ -261,6 +267,7 @@ async def replace_background(request: Request, svc: Services = Depends(get_servi
 
 
 @router.get("/v1/images/generations/{task_id}")
+@router.get("/v1/images/tasks/{task_id}")
 async def get_image_task(task_id: str, request: Request,
                          svc: Services = Depends(get_services)) -> dict:
     task = svc.tasks.get(task_id)

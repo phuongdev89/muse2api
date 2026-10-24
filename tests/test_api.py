@@ -252,6 +252,23 @@ def test_image_edits_rejects_bad_input(client, auth):
     assert bad_n.status_code == 400
 
 
+def test_image_edits_async(client, auth):
+    import time
+    png = ("image", ("a.png", b"fake", "image/png"))
+    r = client.post("/v1/images/edits", headers=auth,
+                    data={"prompt": "make it pink", "async": "true"},
+                    files=[png])
+    assert r.status_code == 200
+    task = r.json()
+    assert task["object"] == "image.task" and task["id"].startswith("task_")
+    for _ in range(50):
+        view = client.get(f"/v1/images/tasks/{task['id']}", headers=auth).json()
+        if view["status"] == "succeeded":
+            break
+        time.sleep(0.02)
+    assert view["status"] == "succeeded"
+
+
 def test_admin_account_quota(client, admin):
     r = client.post("/admin/accounts", headers=admin,
                     json={"label": "q1", "cookies": {"hatch_sess": "secretvalue123"}})

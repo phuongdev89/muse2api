@@ -152,6 +152,7 @@ Tạo ảnh bằng văn bản hoặc chỉnh sửa ảnh (img2img).
 - `async`: `false` (mặc định - chờ kết quả) hoặc `true` (trả về Task ID để poll).
 
 ### Response (200 OK):
+Khi `async: false` (mặc định):
 ```json
 {
   "created": 1792030000,
@@ -164,11 +165,32 @@ Tạo ảnh bằng văn bản hoặc chỉnh sửa ảnh (img2img).
 }
 ```
 
+Khi `async: true` (chế độ background task, tránh timeout client / proxy khi tạo ảnh lâu):
+```json
+{
+  "id": "task_abc123def456",
+  "object": "image.task",
+  "status": "queued",
+  "progress": 0,
+  "created_at": 1792030000,
+  "model": "muse-image",
+  "result": null,
+  "error": null
+}
+```
+Sau đó kiểm tra trạng thái qua:
+```http
+GET /v1/images/generations/{task_id}
+hoặc
+GET /v1/images/tasks/{task_id}
+```
+Khi hoàn thành, `status` là `"succeeded"` và `result` chứa dữ liệu ảnh tương tự response đồng bộ.
+
 ---
 
 ## 5. Image Editing Tools
 
-Các endpoint multipart này dùng `muse-image` mặc định và trả về cùng cấu trúc `data[]` như Image Generation. Có thể truyền thêm `model`, `size` và `response_format` (`url` hoặc `b64_json`). Prompt là hướng dẫn bổ sung tùy chọn; thay bối cảnh dùng ảnh thứ hai làm ảnh tham chiếu nền. Tất cả yêu cầu ảnh đều yêu cầu Muse trả đúng một ảnh 2K và không tạo collage. Với các thao tác chỉnh sửa, API cũng yêu cầu giữ nguyên kích thước pixel (chiều rộng và chiều cao) cùng tỉ lệ ảnh nguồn; đầu ra được trả trực tiếp, không resize phía gateway. Đây là chỉ dẫn cho Muse, kích thước thực tế vẫn tùy kết quả upstream.
+Các endpoint multipart này dùng `muse-image` mặc định và trả về cùng cấu trúc `data[]` như Image Generation (hoặc `image.task` khi truyền `async=true`). Có thể truyền thêm `model`, `size`, `async` (`true`/`false`) và `response_format` (`url` hoặc `b64_json`). Prompt là hướng dẫn bổ sung tùy chọn; thay bối cảnh dùng ảnh thứ hai làm ảnh tham chiếu nền. Tất cả yêu cầu ảnh đều yêu cầu Muse trả đúng một ảnh 2K và không tạo collage. Với các thao tác chỉnh sửa, API cũng yêu cầu giữ nguyên kích thước pixel (chiều rộng và chiều cao) cùng tỉ lệ ảnh nguồn; đầu ra được trả trực tiếp, không resize phía gateway. Đây là chỉ dẫn cho Muse, kích thước thực tế vẫn tùy kết quả upstream.
 
 Quy tắc kích thước theo thao tác:
 - **Sửa ảnh**, **tách trang phục**, **xóa vật thể**: giữ chiều rộng, chiều cao và tỉ lệ ảnh gốc.

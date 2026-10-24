@@ -272,8 +272,10 @@ curl http://localhost:18610/admin/accounts \
 | GET | `/healthz` · `/readyz` | Liveness · readiness (driver state and available accounts) |
 | GET | `/v1/models` | Model list, including aliases such as `muse-chat` |
 | POST | `/v1/chat/completions` | Chat, streaming and non-streaming |
-| POST | `/v1/images/generations` · GET `/v1/images/generations/{id}` | Text to image (optional `image` references), returns `url` or `b64_json`; `"async": true` returns a task to poll |
-| POST | `/v1/images/edits` | Multipart `image`/`image[]` files + `prompt`, OpenAI-compatible |
+| POST | `/v1/images/generations` · GET `/v1/images/generations/{id}` | Text to image (optional `image` references), returns `url` or `b64_json`; `"async": true` returns a task to poll (also at `/v1/images/tasks/{id}`) |
+| POST | `/v1/images/edits` | Multipart `image`/`image[]` files + `prompt`, OpenAI-compatible (supports `"async": true`) |
+| POST | `/v1/images/outfits/extract` · `/try-on` | Specialized fashion tools (supports `"async": true`) |
+| POST | `/v1/images/objects/remove` · `/accessories/add` · `/background/replace` | Object removal, accessories and background replacement (supports `"async": true`) |
 | POST | `/v1/videos` · GET `/v1/videos/{id}` | Create a video task · query a task |
 | GET | `/v1/media/{name}` | Download generated media |
 | GET/POST/PATCH/DELETE | `/admin/accounts[/{id}]` | Account CRUD |

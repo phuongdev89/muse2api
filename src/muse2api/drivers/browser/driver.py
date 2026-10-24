@@ -262,7 +262,10 @@ class BrowserDriver(MuseDriver):
                 # Never hand Chromium a past expiry; it would drop the cookie silently.
                 "expires": exp if exp > floor else time.time() + 7 * 86400,
             }
-            await session.send("Network.setCookie", params)
+            try:
+                await session.send("Network.setCookie", params)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("failed to set cookie %s on %s: %s", name, account.id, exc)
 
     @staticmethod
     def _forget(tab: _Tab) -> None:
