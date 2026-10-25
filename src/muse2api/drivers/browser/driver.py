@@ -48,6 +48,7 @@ from ..base import (
 from . import dom
 from .cdp import CDPError, CDPSession
 from .chromium import ChromiumProcess, find_chromium
+from .media_threads import MediaThreadCache
 
 log = logging.getLogger(__name__)
 
@@ -94,6 +95,7 @@ class BrowserDriver(MuseDriver):
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
+        self.media_threads = MediaThreadCache(max_turns=HOT_BUBBLE_LIMIT)
         self._chromium: ChromiumProcess | None = None
         self._browser: CDPSession | None = None
         # One browser context (cookie jar) per account, holding up to
@@ -428,6 +430,67 @@ class BrowserDriver(MuseDriver):
         await self._wait_for_submission(tab, base)
         return base
 
+    async def _prepare_media(
+        self, tab: _Tab, account: Account, prompt: str, images: list[InputImage],
+        kind: str, req: Any = None
+    ) -> dict:
+        cached_thread_url = self.media_threads.get(account.id, kind)
+        reused = False
+        if cached_thread_url:
+            tab.thread_url = cached_thread_url
+            tab.hint = f"media:{kind}"
+            if await self._on_thread(tab):
+                log.info("reusing hot media %s thread: %s", kind, cached_thread_url)
+                reused = True
+            else:
+                try:
+                    log.info("navigating to cached media %s thread: %s", kind, cached_thread_url)
+                    await self._open_saved(tab)
+                    if await self._on_thread(tab):
+                        reused = True
+                    else:
+                        log.info(
+                            "thread %s not ready or over bubble limit; creating new thread",
+                            cached_thread_url,
+                        )
+                except Exception as exc:  # noqa: BLE001
+                    log.warning(
+                        "failed to open cached media %s thread %s: %s; creating new thread",
+                        kind,
+                        cached_thread_url,
+                        exc,
+                    )
+
+        if not reused:
+            self.media_threads.invalidate(account.id, kind)
+            await self._new_thread(tab)
+            tab.hint = f"media:{kind}"
+
+        base = await self._state(tab)
+        await self._attach(tab, images)
+        await self._send(tab, prompt)
+        if req is not None and hasattr(req, "submitted"):
+            req.submitted = True
+        await self._wait_for_submission(tab, base)
+
+        if reused:
+            self.media_threads.touch(account.id, kind, cached_thread_url)
+        else:
+            url = ""
+            for _ in range(10):
+                url = await self._href(tab)
+                if is_thread_url(url):
+                    break
+                await asyncio.sleep(0.2)
+            if is_thread_url(url):
+                tab.thread_url = url
+                self.media_threads.touch(account.id, kind, url)
+                log.info("saved media %s thread: %s", kind, url)
+            else:
+                log.info("media %s prompt submitted but thread url was not ready yet", kind)
+
+        return base
+
     async def _deny_approvals(self, tab: _Tab) -> None:
         denied = await tab.session.evaluate(dom.DENY_APPROVALS) or []
         for what in denied:
@@ -711,13 +774,19 @@ class BrowserDriver(MuseDriver):
 
     async def _generate(self, account: Account, prompt: str, images: list[InputImage],
                         kind: str, timeout: float, on_progress, cancel, req: Any = None) -> MediaResult:
-        # Media always starts a fresh thread, so keep tabs holding a chat for chats.
-        tab = await self._checkout(account, prefer=lambda t: not t.has_state)
+        cached_thread_url = self.media_threads.get(account.id, kind)
+        prefer = (
+            (lambda t: t.thread_url == cached_thread_url and (t.hint or "") == f"media:{kind}")
+            if cached_thread_url
+            else (lambda t: not t.has_state)
+        )
+        tab = await self._checkout(account, prefer=prefer)
         try:
-            base = await self._prepare(tab, prompt, images, req=req)
+            base = await self._prepare_media(tab, account, prompt, images, kind, req=req)
             att = await self._wait_media(tab, base, kind, timeout, on_progress, cancel)
             return await self._download(tab, att, kind)
         except CDPError as exc:
+            self.media_threads.invalidate(account.id, kind)
             await self._close_tab(tab)
             raise UpstreamError(f"browser error: {exc}") from exc
         finally:
@@ -741,6 +810,8 @@ class BrowserDriver(MuseDriver):
 
     # ------------------------------------------------------------ session
     async def renew_session(self, account: Account) -> SessionInfo:
+        self.media_threads.invalidate(account.id, "image")
+        self.media_threads.invalidate(account.id, "video")
         info = await muse.renew_session(account.cookies)
         # Retire the account's tabs so new ones load the rotated cookies; a tab
         # in the middle of a request is closed when it is checked back in.

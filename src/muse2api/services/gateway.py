@@ -104,12 +104,18 @@ class Gateway:
         self, req: ImageRequest, *, account_id: str | None = None
     ) -> list[MediaResult]:
         return await self._run(
-            lambda acc: self.driver.generate_image(acc, req), account_id=account_id, req=req
+            lambda acc: self.driver.generate_image(acc, req),
+            hint="media:image",
+            account_id=account_id,
+            req=req,
         )
 
     async def generate_video(
         self, req: VideoRequest, *, account_id: str | None = None
     ) -> MediaResult:
         return await self._run(
-            lambda acc: self.driver.generate_video(acc, req), account_id=account_id, req=req
+            lambda acc: self.driver.generate_video(acc, req),
+            hint="media:video",
+            account_id=account_id,
+            req=req,
         )
