@@ -1755,6 +1755,7 @@ code.mono-inline {
         </div>` : ""}
       ${a.last_error ? `<div class="reason" title="last_error">${esc(a.last_error)}</div>` : ""}
       <div class="acc-actions">
+        <button class="btn sm" type="button" data-act="edit">Sửa</button>
         ${state.capabilities.renew_session ? `<button class="btn sm" type="button" data-act="renew">Gia hạn</button>` : ""}
         <button class="btn sm" type="button" data-act="reset" ${s.key === "active" && !a.last_error ? "disabled" : ""} title="Xoá cooldown và lỗi, đưa về trạng thái hoạt động">Đặt lại</button>
         <button class="btn sm ghost" type="button" data-act="requests">Requests</button>
@@ -1847,22 +1848,28 @@ code.mono-inline {
     return {cookies, cookie_expires};
   }
 
-  $("#acc-new").addEventListener("click", () => guarded(async () => {
+  async function editAccount(account = null) {
     const saved = await modal({
-      title: "Thêm tài khoản bằng cookies", wide: true,
+      title: account ? "Sửa tài khoản" : "Thêm tài khoản bằng cookies", wide: true,
       body: `<p class="muted">Dán cookies từ trình duyệt đã đăng nhập muse.ai. Hỗ trợ Cookie header, JSON object hoặc JSON array từ tiện ích xuất cookies.</p>
-        <label class="f">Tên tài khoản <span class="hint">không bắt buộc</span><input id="ac-name" type="text" maxlength="100" autocomplete="off" placeholder="Ví dụ: Muse cá nhân"></label>
-        <label class="f">Cookies<textarea id="ac-cookies" rows="9" class="mono" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="hatch_sess=...; hatch_gw=...; hatch_vml=...; hatch_native_auth_device=..."></textarea></label>
+        <label class="f">Tên tài khoản <span class="hint">không bắt buộc</span><input id="ac-name" type="text" maxlength="100" autocomplete="off" value="${esc(account?.label || "")}" placeholder="Ví dụ: Muse cá nhân"></label>
+        <label class="f">Cookies ${account ? '<span class="hint">Để trống để giữ cookie hiện tại; dán bộ mới để thay thế.</span>' : ""}<textarea id="ac-cookies" rows="9" class="mono" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="hatch_sess=...; hatch_gw=...; hatch_vml=...; hatch_native_auth_device=..."></textarea></label>
         <p class="hint">Cần đủ hatch_sess, hatch_gw, hatch_vml, hatch_native_auth_device. Lưu thành công chỉ xác nhận đã nhập; phiên đăng nhập sẽ được kiểm tra khi sử dụng.</p>
-        <label class="chk"><input id="ac-enabled" type="checkbox" checked>Bật tài khoản sau khi lưu</label>`,
+        <label class="chk"><input id="ac-enabled" type="checkbox" ${!account || account.enabled ? "checked" : ""}>Bật tài khoản sau khi lưu</label>`,
       actions: [{label: "Huỷ", value: null}, {label: "Lưu tài khoản", primary: true, cls: "primary",
-        collect: () => ({label: $("#ac-name").value.trim(), enabled: $("#ac-enabled").checked, ...parseAccountCookies($("#ac-cookies").value)}),
-        submit: (body) => api("/admin/accounts", {method: "POST", body})}],
+        collect: () => {
+          const raw = $("#ac-cookies").value.trim();
+          return {label: $("#ac-name").value.trim(), enabled: $("#ac-enabled").checked,
+            ...(!account || raw ? parseAccountCookies(raw) : {})};
+        },
+        submit: (body) => api(account ? `/admin/accounts/${encodeURIComponent(account.id)}` : "/admin/accounts",
+          {method: account ? "PATCH" : "POST", body})}],
     });
     if (!saved) return;
-    toast("Đã thêm tài khoản");
+    toast(account ? "Đã cập nhật tài khoản" : "Đã thêm tài khoản");
     await loadAccountsPage();
-  }));
+  }
+  $("#acc-new").addEventListener("click", () => guarded(() => editAccount()));
 
   $("#accounts").addEventListener("change", (e) => {
     const input = e.target.closest("input[data-act=toggle]");
@@ -1881,6 +1888,7 @@ code.mono-inline {
     const a = state.accounts.find((x) => x.id === id);
     const act = btn.dataset.act;
     if (act === "requests") return go("requests", {account: id});
+    if (act === "edit" && a) return guarded(() => editAccount(a));
     guarded(async () => {
       const path = `/admin/accounts/${encodeURIComponent(id)}`;
       if (act === "delete") {
