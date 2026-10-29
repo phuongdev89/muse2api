@@ -10,6 +10,26 @@ from ..services.container import Services
 
 _bearer_scheme = HTTPBearer(auto_error=False)
 
+# The generation routes read these from the raw request (no failover when set);
+# declared here via ``openapi_extra`` so Swagger documents them without changing
+# how the routes pull the values.
+ACCOUNT_ROUTING_PARAMS: list[dict] = [
+    {
+        "name": "X-Account-ID",
+        "in": "header",
+        "required": False,
+        "schema": {"type": "string", "nullable": True},
+        "description": "Pin this request to one pool account; disables failover.",
+    },
+    {
+        "name": "account_id",
+        "in": "query",
+        "required": False,
+        "schema": {"type": "string", "nullable": True},
+        "description": "Query-string alternative to the X-Account-ID header.",
+    },
+]
+
 
 def get_services(request: Request) -> Services:
     return request.app.state.services

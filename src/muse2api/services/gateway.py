@@ -119,3 +119,33 @@ class Gateway:
             account_id=account_id,
             req=req,
         )
+
+    async def list_threads(
+        self, limit: int = 20, cursor: str | None = None, *, account_id: str | None = None
+    ) -> tuple[list, str | None]:
+        return await self._run(
+            lambda acc: self.driver.list_threads(acc, limit, cursor),
+            account_id=account_id,
+        )
+
+    async def thread_messages(
+        self, thread_id: str, *, account_id: str | None = None
+    ) -> list[dict]:
+        return await self._run(
+            lambda acc: self.driver.thread_messages(acc, thread_id),
+            account_id=account_id,
+        )
+
+    async def rename_thread(
+        self, thread_id: str, title: str, *, account_id: str | None = None
+    ) -> Any:
+        return await self._run(
+            lambda acc: self.driver.rename_thread(acc, thread_id, title),
+            account_id=account_id,
+        )
+
+    async def delete_thread(self, thread_id: str, *, account_id: str | None = None) -> None:
+        return await self._run(
+            lambda acc: self.driver.delete_thread(acc, thread_id),
+            account_id=account_id,
+        )

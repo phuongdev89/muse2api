@@ -18,6 +18,7 @@ import base64
 import contextlib
 import logging
 import mimetypes
+import re
 import time
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
@@ -28,6 +29,7 @@ from ...accounts.model import Account
 from ...config import Settings
 from ...core.prompt import followup_text
 from ...errors import (
+    NotFound,
     UpstreamAuthError,
     UpstreamError,
     UpstreamQuotaError,
@@ -43,6 +45,7 @@ from ..base import (
     MediaResult,
     MuseDriver,
     SessionInfo,
+    ThreadInfo,
     VideoRequest,
 )
 from . import dom
@@ -823,3 +826,352 @@ class BrowserDriver(MuseDriver):
         for tab in idle:
             await self._close_tab(tab)
         return info
+
+    # ------------------------------------------------------------ threads
+    # The muse.ai gateway RPC (thread history, rename, delete) runs over an
+    # encrypted Noise websocket, so management operations drive the logged-in
+    # web UI instead, the same way chat does. Radix menu/dropdown triggers
+    # ignore synthetic .click()s; helpers in dom.py locate elements and return
+    # coordinates, and _click_at dispatches real CDP mouse events.
+
+    _CURSOR_PREFIX = "t"
+
+    @staticmethod
+    def _encode_cursor(offset: int) -> str:
+        return f"{BrowserDriver._CURSOR_PREFIX}{base64.urlsafe_b64encode(str(offset).encode()).decode()}"
+
+    @staticmethod
+    def _decode_cursor(cursor: str | None) -> int:
+        if not cursor:
+            return 0
+        try:
+            raw = cursor[len(BrowserDriver._CURSOR_PREFIX):]
+            return max(0, int(base64.urlsafe_b64decode(raw.encode()).decode()))
+        except Exception:  # noqa: BLE001
+            return 0
+
+    @staticmethod
+    def _parse_rel_time(label: str, now: int | None = None) -> int | None:
+        """Best-effort epoch from the sidebar's relative labels ("34m", "4h", "Wed")."""
+        now = now or int(time.time())
+        text = (label or "").strip().lower()
+        if not text:
+            return None
+        if text in ("now", "just now"):
+            return now
+        if (m := re.fullmatch(r"(\d+)\s*(s|m|h|d|w)", text)):
+            scale = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 7 * 86400}[m.group(2)]
+            return now - int(m.group(1)) * scale
+        weekdays = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+        idx = next((i for i, name in enumerate(weekdays) if name.startswith(text)), -1)
+        if idx >= 0:
+            lt = time.localtime(now)
+            delta = (lt.tm_wday - idx) % 7 or 7
+            return now - delta * 86400
+        if (m := re.fullmatch(r"([a-z]{3})\s*(\d{1,2})", text)):
+            months = ("jan", "feb", "mar", "apr", "may", "jun",
+                      "jul", "aug", "sep", "oct", "nov", "dec")
+            if m.group(1) in months:
+                lt = time.localtime(now)
+                day = int(m.group(2))
+                for back in range(0, 3):
+                    year = lt.tm_year - back
+                    try:
+                        cand = time.mktime((year, months.index(m.group(1)) + 1, day,
+                                            lt.tm_hour, lt.tm_min, 0, 0, 0, -1))
+                    except (OverflowError, ValueError):
+                        continue
+                    if cand <= now:
+                        return int(cand)
+        return None
+
+    @staticmethod
+    def _parse_clock_time(label: str | None, now: int) -> int | None:
+        """Best-effort epoch from a wall-clock stamp like "9:15 PM" (assumed today)."""
+        if not label:
+            return None
+        m = re.search(r"(\d{1,2}):(\d{2})\s*([AP])\.?M\.?", label.strip(), re.IGNORECASE)
+        if not m:
+            return None
+        hour, minute = int(m.group(1)) % 12, int(m.group(2))
+        if m.group(3).upper() == "P":
+            hour += 12
+        lt = time.localtime(now)
+        try:
+            cand = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, hour, minute, 0, 0, 0, -1))
+        except (OverflowError, ValueError):
+            return None
+        if cand > now + 300:  # a future stamp belongs to yesterday
+            cand -= 86400
+        return int(cand)
+
+    async def _click_at(self, tab: _Tab, pt: dict) -> None:
+        x, y = int(pt["x"]), int(pt["y"])
+        await tab.session.send("Input.dispatchMouseEvent",
+                               {"type": "mouseMoved", "x": x, "y": y})
+        for kind in ("mousePressed", "mouseReleased"):
+            await tab.session.send(
+                "Input.dispatchMouseEvent",
+                {"type": kind, "x": x, "y": y, "button": "left", "clickCount": 1})
+
+    async def _hover_at(self, tab: _Tab, pt: dict) -> None:
+        await tab.session.send("Input.dispatchMouseEvent",
+                               {"type": "mouseMoved", "x": int(pt["x"]), "y": int(pt["y"])})
+
+    async def _press_enter(self, tab: _Tab) -> None:
+        for kind in ("keyDown", "keyUp"):
+            await tab.session.send(
+                "Input.dispatchKeyEvent",
+                {"type": kind, "key": "Enter", "code": "Enter", "windowsVirtualKeyCode": 13,
+                 **({"text": "\r"} if kind == "keyDown" else {})})
+
+    async def _goto_page(self, tab: _Tab, url: str) -> None:
+        """Navigate a tab and wait until the muse.ai shell is interactive."""
+        await tab.session.send("Page.navigate", {"url": url})
+        deadline = time.monotonic() + self.settings.page_ready_timeout
+        state: dict = {}
+        while time.monotonic() < deadline:
+            await asyncio.sleep(0.25)
+            with contextlib.suppress(CDPError, TimeoutError):
+                state = await tab.session.evaluate(dom.PAGE_STATE, timeout=5.0) or {}
+                if state.get("ready"):
+                    return
+        head = (state.get("head") or "").lower()
+        if any(h in head for h in dom.LOGIN_HINTS):
+            raise UpstreamAuthError("muse.ai redirected to login; cookies are no longer valid")
+        raise UpstreamTimeout("muse.ai page did not become ready")
+
+    async def _finish_thread_op(self, tab: _Tab, prev_url: str) -> None:
+        """Put the tab back the way the thread operation found it."""
+        if prev_url and is_thread_url(prev_url) and (await self._href(tab)) != prev_url:
+            with contextlib.suppress(UpstreamError):
+                await self._goto_page(tab, prev_url)
+                return
+        self._forget(tab)
+
+    async def _open_thread_list(self, tab: _Tab) -> list[dict]:
+        """Expand the sidebar thread list and return its rows (may be empty).
+
+        The panel appears client-side after hydration, so locating the trigger,
+        clicking it and waiting for rows all retry until a deadline.
+        """
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline:
+            pt = await tab.session.evaluate(dom.SIDE_CHATS_TRIGGER)
+            if pt:
+                await self._click_at(tab, pt)
+                click_deadline = time.monotonic() + 5
+                while time.monotonic() < click_deadline:
+                    rows = await tab.session.evaluate(dom.THREAD_ROWS) or []
+                    if rows:
+                        return rows
+                    await asyncio.sleep(0.4)
+            await asyncio.sleep(0.5)
+        return []
+
+    async def _wait_menu_item(self, tab: _Tab, pel: str, timeout: float = 6.0) -> dict:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            pt = await tab.session.evaluate(f"({dom.MENU_ITEM})({dom.q(pel)})")
+            if pt:
+                return pt
+            await asyncio.sleep(0.25)
+        raise UpstreamError(f"muse.ai menu item '{pel}' did not appear")
+
+    async def _wait_url_change(self, tab: _Tab, previous: str, timeout: float = 10.0) -> str:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            href = await self._href(tab)
+            if href and href.rstrip("/") != previous.rstrip("/"):
+                return href
+            await asyncio.sleep(0.15)
+        return await self._href(tab)
+
+    async def _thread_page(self, tab: _Tab, thread_id: str) -> None:
+        """Open a thread page and verify upstream actually has it."""
+        url = muse.thread_url(thread_id)
+        await self._goto_page(tab, url)
+        href = await self._href(tab)
+        if urlsplit(href).path.rstrip("/") != f"/thread/{thread_id}":
+            raise NotFound(f"thread '{thread_id}' not found")
+
+    async def _row_actions(self, tab: _Tab, row_index: int) -> dict:
+        """Hover a sidebar row to reveal its kebab button and return both points."""
+        probe = await tab.session.evaluate(f"({dom.ROW_KEBAB})({row_index})")
+        if not probe:
+            raise NotFound("thread is not in the loaded thread list")
+        await self._hover_at(tab, probe["hover"])
+        await asyncio.sleep(0.5)
+        probe = await tab.session.evaluate(f"({dom.ROW_KEBAB})({row_index})")
+        if not probe or not probe.get("kebab"):
+            raise UpstreamRefused("this thread has no actions menu in the muse.ai UI")
+        return probe
+
+    async def _ensure_list_open(self, tab: _Tab) -> list[dict]:
+        """Return the current thread rows, (re-)opening the panel when closed.
+
+        The side-chats panel closes on navigation, so between two row clicks it
+        usually has to be expanded again.
+        """
+        rows = await tab.session.evaluate(dom.THREAD_ROWS) or []
+        if any(r.get("visible") for r in rows):
+            return rows
+        rows = await self._open_thread_list(tab)
+        return [r for r in rows if r.get("hasActions")]
+
+    async def _find_row(self, tab: _Tab, title: str) -> dict | None:
+        for rows in (await self._ensure_list_open(tab), await self._ensure_list_open(tab)):
+            row = next((r for r in rows if r.get("title") == title and r.get("hasActions")
+                        and r.get("visible")), None)
+            if row:
+                return row
+        return None
+
+    async def list_threads(
+        self, account: Account, limit: int = 20, cursor: str | None = None
+    ) -> tuple[list[ThreadInfo], str | None]:
+        offset = self._decode_cursor(cursor)
+        tab = await self._checkout(account, prefer=lambda t: not t.has_state)
+        try:
+            await self._goto_page(tab, muse.NEW_THREAD_URL)
+            rows = await self._open_thread_list(tab)
+            # "Main chat" is the back-to-home nav row; only side chats map to URLs.
+            rows = [r for r in rows if r.get("hasActions")]
+            log.info("list_threads: rows=%d offset=%d", len(rows), offset)
+            if offset >= len(rows):
+                return [], None
+            if offset + limit > len(rows):
+                # One scroll-to-end round to let the panel load its next window.
+                if await tab.session.evaluate(dom.SCROLL_ROWS_TO_END):
+                    await asyncio.sleep(1.5)
+                    rows = await self._open_thread_list(tab)
+                    rows = [r for r in rows if r.get("hasActions")]
+            page = rows[offset:offset + limit]
+            threads: list[ThreadInfo] = []
+            base_href = await self._href(tab)
+            now = int(time.time())
+            for row in page:
+                target = await self._find_row(tab, row["title"])
+                if not target:
+                    break
+                await self._click_at(tab, target)
+                href = await self._wait_url_change(tab, base_href, timeout=6)
+                if not is_thread_url(href):
+                    break
+                base_href = href
+                threads.append(ThreadInfo(
+                    id=urlsplit(href).path.rstrip("/").rsplit("/thread/", 1)[-1],
+                    title=row["title"],
+                    url=href.rstrip("/"),
+                    updated_at=self._parse_rel_time(row["time"], now),
+                ))
+            next_cursor = (self._encode_cursor(offset + limit)
+                           if offset + limit < len(rows) and len(threads) == len(page) else None)
+            return threads, next_cursor
+        except CDPError as exc:
+            await self._close_tab(tab)
+            raise UpstreamError(f"browser error: {exc}") from exc
+        finally:
+            await self._finish_thread_op(tab, tab.thread_url)
+            await self._checkin(tab)
+
+    async def thread_messages(self, account: Account, thread_id: str) -> list[dict[str, Any]]:
+        tab = await self._checkout(account, prefer=lambda t: not t.has_state)
+        try:
+            await self._thread_page(tab, thread_id)
+            items: list[dict] = []
+            deadline = time.monotonic() + 15
+            while time.monotonic() < deadline:
+                items = await tab.session.evaluate(dom.TRANSCRIPT) or []
+                if items:
+                    break
+                await asyncio.sleep(0.5)
+            if not items:
+                raise NotFound(f"thread '{thread_id}' has no messages")
+            now = int(time.time())
+            return [{"role": it["role"], "content": it["content"],
+                     "created_at": self._parse_clock_time(it.get("time"), now)}
+                    for it in items]
+        except CDPError as exc:
+            await self._close_tab(tab)
+            raise UpstreamError(f"browser error: {exc}") from exc
+        finally:
+            await self._finish_thread_op(tab, tab.thread_url)
+            await self._checkin(tab)
+
+    async def rename_thread(self, account: Account, thread_id: str, title: str) -> ThreadInfo:
+        tab = await self._checkout(account, prefer=lambda t: not t.has_state)
+        try:
+            await self._thread_page(tab, thread_id)
+            rows = await self._open_thread_list(tab)
+            idx = next((i for i, r in enumerate(rows) if r.get("current")), -1)
+            if idx < 0:
+                raise NotFound(f"thread '{thread_id}' is not in the loaded thread list")
+            probe = await self._row_actions(tab, idx)
+            await self._click_at(tab, probe["kebab"])
+            await self._click_at(tab, await self._wait_menu_item(tab, "chat_thread_rename_open"))
+            deadline = time.monotonic() + 6
+            while time.monotonic() < deadline:
+                if (await tab.session.evaluate(dom.RENAME_INPUT_PRESENT)).get("present"):
+                    break
+                await asyncio.sleep(0.25)
+            else:
+                raise UpstreamError("muse.ai rename input did not appear")
+            if not await tab.session.evaluate(dom.rename_fill(title)):
+                raise UpstreamError("cannot fill the muse.ai rename input")
+            await self._press_enter(tab)
+            deadline = time.monotonic() + 8
+            while time.monotonic() < deadline:
+                if not (await tab.session.evaluate(dom.RENAME_INPUT_PRESENT)).get("present"):
+                    break
+                await asyncio.sleep(0.25)
+            else:
+                raise UpstreamError("muse.ai did not accept the new thread title")
+            rows = await tab.session.evaluate(dom.THREAD_ROWS) or []
+            current = next((r for r in rows if r.get("current")), None)
+            return ThreadInfo(id=thread_id, title=(current or {}).get("title") or title,
+                              url=muse.thread_url(thread_id), updated_at=int(time.time()))
+        except CDPError as exc:
+            await self._close_tab(tab)
+            raise UpstreamError(f"browser error: {exc}") from exc
+        finally:
+            await self._finish_thread_op(tab, muse.thread_url(thread_id))
+            await self._checkin(tab)
+
+    async def delete_thread(self, account: Account, thread_id: str) -> None:
+        tab = await self._checkout(account, prefer=lambda t: not t.has_state)
+        try:
+            await self._thread_page(tab, thread_id)
+            rows = await self._open_thread_list(tab)
+            idx = next((i for i, r in enumerate(rows) if r.get("current")), -1)
+            if idx < 0:
+                raise NotFound(f"thread '{thread_id}' is not in the loaded thread list")
+            probe = await self._row_actions(tab, idx)
+            await self._click_at(tab, probe["kebab"])
+            await self._click_at(tab, await self._wait_menu_item(tab, "chat_thread_delete_open"))
+            deadline = time.monotonic() + 6
+            while time.monotonic() < deadline:
+                if await tab.session.evaluate(dom.DELETE_DIALOG_OPEN):
+                    break
+                await asyncio.sleep(0.25)
+            else:
+                raise UpstreamError("muse.ai delete confirmation did not appear")
+            confirm = await tab.session.evaluate(dom.CONFIRM_DELETE_BUTTON)
+            if not confirm:
+                raise UpstreamError("muse.ai delete confirm button not found")
+            await self._click_at(tab, confirm)
+            thread_url = muse.thread_url(thread_id)
+            deadline = time.monotonic() + 15
+            while time.monotonic() < deadline:
+                dialog = await tab.session.evaluate(dom.DELETE_DIALOG_OPEN)
+                href = await self._href(tab)
+                if not dialog and (not is_thread_url(href) or href.rstrip("/") != thread_url.rstrip("/")):
+                    self._forget(tab)
+                    return
+                await asyncio.sleep(0.3)
+            raise UpstreamError("muse.ai did not confirm the thread deletion")
+        except CDPError as exc:
+            await self._close_tab(tab)
+            raise UpstreamError(f"browser error: {exc}") from exc
+        finally:
+            await self._checkin(tab)

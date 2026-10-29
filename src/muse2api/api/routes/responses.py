@@ -14,6 +14,7 @@ router = APIRouter(tags=["responses"], dependencies=[Depends(require_api_key)])
 
 @router.post("/v1/responses")
 async def create_response(request: Request) -> None:
+    """Reserved. Always answers 501 — use ``/v1/chat/completions`` for now."""
     try:
         body = await request.json()
         request.state.model = body.get("model") if isinstance(body, dict) else None

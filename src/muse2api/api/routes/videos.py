@@ -8,7 +8,7 @@ from ...drivers.base import InputImage, VideoRequest
 from ...errors import NotFound
 from ...services.container import Services
 from ...services.tasks import Task
-from ..deps import get_services, public_base, require_api_key
+from ..deps import ACCOUNT_ROUTING_PARAMS, get_services, public_base, require_api_key
 from ..schemas import VideoCreateRequest
 
 router = APIRouter(tags=["videos"], dependencies=[Depends(require_api_key)])
@@ -27,9 +27,15 @@ def _task_view(task: Task) -> dict:
     }
 
 
-@router.post("/v1/videos")
+@router.post("/v1/videos", openapi_extra={"parameters": ACCOUNT_ROUTING_PARAMS})
 async def create_video(body: VideoCreateRequest, request: Request,
                        svc: Services = Depends(get_services)) -> dict:
+    """Create a text-to-video or image-to-video task (always asynchronous).
+
+    ``image`` (or ``input_reference``) supplies the first frame; poll the task
+    at ``GET /v1/videos/{task_id}`` until ``status`` is ``succeeded`` and read
+    the ``result.url``.
+    """
     request.state.model = body.model  # logged even if it does not resolve
     request.state.request_text = body.prompt
     spec = resolve_model(body.model, "video")

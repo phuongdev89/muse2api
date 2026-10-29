@@ -15,7 +15,7 @@ from ...drivers.base import ImageRequest, InputImage, MediaResult
 from ...errors import InvalidRequest, NotFound
 from ...services.container import Services
 from ...services.tasks import Task
-from ..deps import get_services, public_base, require_api_key
+from ..deps import ACCOUNT_ROUTING_PARAMS, get_services, public_base, require_api_key
 from ..schemas import ImageGenerationRequest
 
 router = APIRouter(tags=["images"], dependencies=[Depends(require_api_key)])
@@ -147,15 +147,21 @@ async def _run(body: ImageGenerationRequest, refs: list[InputImage], base: str,
             "data": [_image_item(r, body.response_format, svc, base) for r in results]}
 
 
-@router.post("/v1/images/generations")
+@router.post("/v1/images/generations", openapi_extra={"parameters": ACCOUNT_ROUTING_PARAMS})
 async def generate_images(body: ImageGenerationRequest, request: Request,
                           svc: Services = Depends(get_services)) -> dict:
+    """Generate images from text; ``image`` adds up to 4 reference images.
+
+    Set ``async: true`` to get a task back and poll
+    ``GET /v1/images/generations/{task_id}`` instead of blocking (proxies often
+    cut long-lived calls, e.g. Cloudflare 524 at ~100 s).
+    """
     refs = body.image if isinstance(body.image, list) else [body.image] if body.image else []
     loaded = [InputImage(*(await load_image_ref(ref))) for ref in refs]
     return await _generate(body, loaded, request, svc)
 
 
-@router.post("/v1/images/edits")
+@router.post("/v1/images/edits", openapi_extra={"parameters": ACCOUNT_ROUTING_PARAMS})
 async def edit_images(request: Request, svc: Services = Depends(get_services)) -> dict:
     """OpenAI-style multipart edit: ``image`` / ``image[]`` files plus a prompt.
 
@@ -232,20 +238,20 @@ async def _image_action_request(request: Request, prompt: str, required: tuple[s
     return await _generate(body, refs, request, svc)
 
 
-@router.post("/v1/images/outfits/extract")
+@router.post("/v1/images/outfits/extract", openapi_extra={"parameters": ACCOUNT_ROUTING_PARAMS})
 async def extract_outfit(request: Request, svc: Services = Depends(get_services)) -> dict:
     """Return only the clothing from ``image`` on a plain white background."""
     return await _image_action_request(request, _OUTFIT_EXTRACT_PROMPT, ("image",), svc)
 
 
-@router.post("/v1/images/outfits/try-on")
+@router.post("/v1/images/outfits/try-on", openapi_extra={"parameters": ACCOUNT_ROUTING_PARAMS})
 async def try_on_outfit(request: Request, svc: Services = Depends(get_services)) -> dict:
     """Apply ``outfit`` to the person in ``character``."""
     return await _image_action_request(request, _OUTFIT_TRY_ON_PROMPT,
                                        ("character", "outfit"), svc)
 
 
-@router.post("/v1/images/objects/remove")
+@router.post("/v1/images/objects/remove", openapi_extra={"parameters": ACCOUNT_ROUTING_PARAMS})
 async def remove_objects(request: Request, svc: Services = Depends(get_services)) -> dict:
     """Remove an object using an optional black/white mask and/or text instruction."""
     return await _image_action_request(request, _REMOVE_OBJECT_PROMPT,
@@ -253,14 +259,14 @@ async def remove_objects(request: Request, svc: Services = Depends(get_services)
                                        prompt_or_optional=("mask",))
 
 
-@router.post("/v1/images/accessories/add")
+@router.post("/v1/images/accessories/add", openapi_extra={"parameters": ACCOUNT_ROUTING_PARAMS})
 async def add_accessory(request: Request, svc: Services = Depends(get_services)) -> dict:
     """Add the accessory in ``accessory`` to the original ``image``."""
     return await _image_action_request(request, _ADD_ACCESSORY_PROMPT,
                                        ("image", "accessory"), svc)
 
 
-@router.post("/v1/images/background/replace")
+@router.post("/v1/images/background/replace", openapi_extra={"parameters": ACCOUNT_ROUTING_PARAMS})
 async def replace_background(request: Request, svc: Services = Depends(get_services)) -> dict:
     """Replace the background in ``image`` using ``background_image`` as reference."""
     return await _image_action_request(request, _REPLACE_BACKGROUND_PROMPT,

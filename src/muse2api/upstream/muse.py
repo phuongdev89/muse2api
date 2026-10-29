@@ -16,6 +16,7 @@ from ..errors import UpstreamAuthError, UpstreamError
 
 SITE = "https://muse.ai"
 NEW_THREAD_URL = f"{SITE}/thread/new"
+THREAD_URL_PREFIX = f"{SITE}/thread/"
 SESSION_API = f"{SITE}/api/session"
 VM_WAKE_API = f"{SITE}/api/hatch/vm/wake"
 
@@ -30,6 +31,27 @@ USER_AGENT = (
 
 def cookie_header(cookies: dict[str, str]) -> str:
     return "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
+
+
+def thread_url(thread_id: str) -> str:
+    return f"{THREAD_URL_PREFIX}{thread_id}"
+
+
+def parse_thread_ref(ref: str) -> str:
+    """Accept a bare thread id or a full ``https://muse.ai/thread/<id>`` URL; return the id."""
+    value = (ref or "").strip()
+    if value.lower().startswith(("http://", "https://")):
+        from urllib.parse import urlsplit
+
+        path = urlsplit(value).path.rstrip("/")
+        if not path.startswith("/thread/") or path == "/thread/new":
+            raise ValueError(f"not a muse.ai thread URL: {ref!r}")
+        value = path[len("/thread/"):]
+    value = value.strip("/")
+    # Path segments are single uuid-ish tokens; anything with a slash or spaces is not one.
+    if not value or "/" in value or any(c.isspace() for c in value) or len(value) > 128:
+        raise ValueError(f"invalid thread id: {ref!r}")
+    return value
 
 
 def missing_session_cookies(cookies: dict[str, str]) -> list[str]:

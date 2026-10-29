@@ -89,6 +89,17 @@ class SessionInfo:
     meta: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass
+class ThreadInfo:
+    id: str
+    title: str
+    url: str
+    created_at: int | None = None
+    """Unix seconds; best effort — upstream does not expose it for list views."""
+    updated_at: int | None = None
+    """Unix seconds, parsed from the upstream's relative "time ago" labels."""
+
+
 @dataclass(frozen=True)
 class DriverCapabilities:
     chat: bool = False
@@ -123,6 +134,24 @@ class MuseDriver(ABC):
 
     async def generate_video(self, account: Account, req: VideoRequest) -> MediaResult:
         raise FeatureNotImplemented(f"driver '{self.name}' does not support video generation")
+
+    async def list_threads(
+        self, account: Account, limit: int = 20, cursor: str | None = None
+    ) -> tuple[list[ThreadInfo], str | None]:
+        """Return the account's conversation threads, most recent first, plus the
+        next opaque cursor (or None when the list is exhausted)."""
+        raise FeatureNotImplemented(f"driver '{self.name}' does not support thread listing")
+
+    async def thread_messages(self, account: Account, thread_id: str) -> list[dict[str, Any]]:
+        """Return a thread's transcript as ``{"role", "content", "created_at"}`` dicts,
+        oldest first. ``created_at`` is unix seconds or None when unknown."""
+        raise FeatureNotImplemented(f"driver '{self.name}' does not support thread history")
+
+    async def rename_thread(self, account: Account, thread_id: str, title: str) -> ThreadInfo:
+        raise FeatureNotImplemented(f"driver '{self.name}' does not support thread renaming")
+
+    async def delete_thread(self, account: Account, thread_id: str) -> None:
+        raise FeatureNotImplemented(f"driver '{self.name}' does not support thread deletion")
 
     async def renew_session(self, account: Account) -> SessionInfo:
         raise FeatureNotImplemented(f"driver '{self.name}' does not support session renewal")

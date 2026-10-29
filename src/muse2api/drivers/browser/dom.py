@@ -165,3 +165,145 @@ def fetch_as_base64(url: str) -> str:
     return {{ ok: true, mime: b.type || '', b64: btoa(s) }};
   }} catch (e) {{ return {{ ok: false, err: String(e) }}; }}
 }})()"""
+
+
+# ---------------------------------------------------------------- threads UI
+# The thread ("side chats") list lives behind two different triggers depending
+# on the page: the collapsed panel's drag handle on /thread/new, and the chat
+# switcher button in the header on a thread page. Radix triggers ignore
+# synthetic .click() calls, so the driver clicks their coordinates with real
+# CDP mouse events; these helpers only locate elements and return rects.
+SIDE_CHATS_TRIGGER = """(() => {
+  const el = document.querySelector('[data-testid="hatch-side-chats-open-drag-handle"]')
+          || document.querySelector('[data-testid="hatch-chat-switcher-trigger"]');
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  return r.width ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null;
+})()"""
+
+THREAD_ROWS = """(() => {
+  const rows = [...document.querySelectorAll('[data-testid="hatch-thread-row"]')];
+  return rows.map(r => {
+    const rect = r.getBoundingClientRect();
+    return {
+      title: r.querySelector('span[title]')?.getAttribute('title') || '',
+      time: (r.innerText || '').trim().split('\\n').pop().trim(),
+      current: r.getAttribute('aria-current') === 'page',
+      // "Main chat" (back to the home chat) is a nav row: no kebab, no URL of
+      // its own; only real side-chat rows carry the actions button.
+      hasActions: !!r.querySelector('button[aria-label="More thread actions"]'),
+      visible: rect.height > 0,
+      x: rect.x + rect.width / 2,
+      y: rect.y + rect.height / 2,
+    };
+  });
+})()"""
+
+# Hover the row first so its "More thread actions" kebab (hover-only) renders,
+# then return the kebab's coordinates.
+ROW_KEBAB = """((idx) => {
+  const rows = [...document.querySelectorAll('[data-testid="hatch-thread-row"]')];
+  const row = idx >= 0 ? rows[idx] : rows.find(r => r.getAttribute('aria-current') === 'page');
+  if (!row) return null;
+  const rr = row.getBoundingClientRect();
+  const hover = { x: rr.x + Math.min(rr.width / 2, 120), y: rr.y + rr.height / 2 };
+  const btn = row.querySelector('button[aria-label="More thread actions"]');
+  if (!btn) return { hover, kebab: null };
+  const br = btn.getBoundingClientRect();
+  return { hover, kebab: br.width ? { x: br.x + br.width / 2, y: br.y + br.height / 2 } : null };
+})"""
+
+# Menu items carry locale-independent data-pel-click names:
+# chat_thread_rename_open / chat_thread_delete_open.
+MENU_ITEM = """((pel) => {
+  const menus = [...document.querySelectorAll('[role="menu"]')]
+    .filter(m => m.getBoundingClientRect().height > 0);
+  for (const m of menus.reverse()) {
+    const item = [...m.querySelectorAll('[role="menuitem"]')]
+      .find(b => b.getAttribute('data-pel-click') === pel);
+    if (item) {
+      const r = item.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    }
+  }
+  return null;
+})"""
+
+RENAME_INPUT_PRESENT = """(() => {
+  const inp = document.querySelector('[data-testid="hatch-thread-rename-input"]');
+  return inp ? { present: true, value: inp.value } : { present: false };
+})()"""
+
+
+def rename_fill(title: str) -> str:
+    """Set the inline rename input value through the native setter so React picks it up."""
+    return f"""(() => {{
+  const inp = document.querySelector('[data-testid="hatch-thread-rename-input"]');
+  if (!inp) return false;
+  inp.focus();
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+  setter.call(inp, {q(title)});
+  inp.dispatchEvent(new Event('input', {{ bubbles: true }}));
+  return true;
+}})()"""
+
+
+CONFIRM_DELETE_BUTTON = """(() => {
+  const actions = document.querySelector('[data-testid="hatch-confirmation-dialog-actions"]');
+  if (!actions) return null;
+  const btn = [...actions.querySelectorAll('button')]
+    .find(b => b.getAttribute('data-pel-click') === 'chat_thread_delete_confirm')
+    || [...actions.querySelectorAll('button')].pop();
+  if (!btn) return null;
+  const r = btn.getBoundingClientRect();
+  return r.width ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null;
+})()"""
+
+DELETE_DIALOG_OPEN = """(() => !!document.querySelector('[data-testid="hatch-confirmation-dialog-actions"]'))()"""
+
+# Scroll the thread list's scroll container to its end; the panel then loads the
+# next window of rows (infinite scroll).
+SCROLL_ROWS_TO_END = """(() => {
+  const row = document.querySelector('[data-testid="hatch-thread-row"]');
+  if (!row) return false;
+  let e = row.parentElement;
+  while (e && e !== document.body) {
+    const cs = getComputedStyle(e);
+    if ((cs.overflowY === 'auto' || cs.overflowY === 'scroll') && e.scrollHeight > e.clientHeight) {
+      e.scrollTop = e.scrollHeight;
+      return true;
+    }
+    e = e.parentElement;
+  }
+  return false;
+})()"""
+
+# Ordered conversation transcript. Roles mirror the selectors CHAT_STATE uses
+# for counting bubbles; per-message times are plain wall-clock texts ("9:15 PM")
+# in a group header, so they are best-effort.
+TRANSCRIPT = """(() => {
+  const userSel = '[data-testid*="user-bubble"], [data-testid*="user-message"], [data-testid*="chat-message-user"], [class*="hatch-user-bubble"], [class*="user-bubble"]';
+  const agentSel = '[class*="hatch-agent-bubble-bg"]';
+  const nodes = [...document.querySelectorAll(userSel + ', ' + agentSel)]
+    .filter(e => e.getBoundingClientRect().height > 0);
+  const items = [];
+  for (const e of nodes) {
+    const isUser = e.matches(userSel);
+    // The generic class selectors also match ancestors of the real bubble; the
+    // outermost match already carries the full text, so skip contained matches.
+    if (nodes.some(o => o !== e && (isUser === o.matches(userSel)) && o.contains(e))) continue;
+    let text = (e.innerText || '').trim();
+    if (!text) continue;
+    if (isUser) text = text.replace(/^You:\s*/, '').trim();
+    let time = null;
+    let p = e.parentElement;
+    for (let i = 0; i < 6 && p && !time; i++, p = p.parentElement) {
+      const t = p.innerText || '';
+      if (t.length > 4000) break;
+      const m = t.match(/\\b\\d{1,2}:\\d{2}\\s*(?:AM|PM|am|pm)\\b/);
+      if (m) time = m[0];
+    }
+    items.push({ role: isUser ? 'user' : 'assistant', content: text, time });
+  }
+  return items;
+})()"""

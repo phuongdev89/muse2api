@@ -72,7 +72,6 @@ OpenAI-compatible chat completion with streaming and vision support.
   "stream": false
 }
 ```
-
 ### Multimodal Vision Request:
 ```json
 {
@@ -106,6 +105,7 @@ OpenAI-compatible chat completion with streaming and vision support.
       "finish_reason": "stop"
     }
   ],
+  "thread": "https://muse.ai/threads/abc123",
   "usage": {
     "prompt_tokens": 12,
     "completion_tokens": 18,
@@ -121,8 +121,102 @@ data: {"id":"chatcmpl-...","object":"chat.completion.chunk","choices":[{"delta":
 
 data: {"id":"chatcmpl-...","object":"chat.completion.chunk","choices":[{"delta":{"content":" chào"}}]}
 
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk","choices":[{"delta":{},"finish_reason":"stop"}]}
+
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk","thread":"https://muse.ai/threads/abc123","choices":[]}
+
 data: [DONE]
 ```
+
+> Ghi chú: khi request chờ token đầu tiên lâu, server có thể gửi SSE comment `: keepalive` để giữ kết nối không bị proxy cắt.
+
+### Conversation Threads (tiếp tục hội thoại):
+Trường `thread` trong response (và chunk SSE cuối) là URL hội thoại upstream. Pass lại trường này trong request tiếp theo để tiếp tục cùng hội thoại — khi có `thread`, lịch sử được giữ phía upstream và chỉ tin nhắn user cuối cùng được gửi đi:
+
+```json
+{
+  "model": "muse-chat",
+  "thread": "https://muse.ai/threads/abc123",
+  "messages": [{"role": "user", "content": "Tiếp tục chủ đề cũ nhé"}]
+}
+```
+Bỏ qua `thread` để bắt đầu hội thoại mới.
+
+---
+
+## 3.1 Quản lý Threads (`/v1/threads`)
+
+Nhóm API quản lý các hội thoại upstream (auth Bearer giống các endpoint `/v1` khác). Các thao tác thực thi phía muse.ai thông qua tab browser đang đăng nhập, nên tốn vài giây mỗi lần gọi. Khi driver không hỗ trợ (vd. `driver=http`), endpoint trả **501** để client graceful-degrade.
+
+`{thread_id}` chấp nhận cả id gốc lẫn URL đầy đủ `https://muse.ai/thread/<id>` (percent-encode nếu chứa ký tự `/`). Có thể pin tài khoản bằng `X-Account-ID` / `?account_id=` như các endpoint generation.
+
+### Danh sách thread
+```http
+GET /v1/threads?limit=20&cursor=<next_cursor>
+Authorization: Bearer <KEY>
+```
+- `limit`: số lượng mỗi trang (mặc định 20, tối đa 100).
+- `cursor`: opaque cursor từ `next_cursor` của trang trước.
+
+**Response (200 OK):**
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "785011a9-bccb-4595-adb5-4f23a9d05463",
+      "title": "Main chat",
+      "url": "https://muse.ai/thread/785011a9-bccb-4595-adb5-4f23a9d05463",
+      "created_at": null,
+      "updated_at": 1793280000
+    }
+  ],
+  "next_cursor": null
+}
+```
+Sắp theo `updated_at` giảm dần. `created_at`/`updated_at` là unix seconds, suy ra từ nhãn thời gian tương đối của muse.ai (vd. "4h", "Wed") nên chỉ mang tính ước lượng; `created_at` thường là `null`.
+
+### Lịch sử tin nhắn
+```http
+GET /v1/threads/{thread_id}/messages
+Authorization: Bearer <KEY>
+```
+
+**Response (200 OK):**
+```json
+{
+  "object": "list",
+  "data": [
+    {"role": "user", "content": "hello", "created_at": 1793279700},
+    {"role": "assistant", "content": "Chào anh, em đây ạ.", "created_at": 1793279712}
+  ]
+}
+```
+`created_at` lấy từ mốc giờ hiển thị trong transcript ("9:15 PM", giả định cùng ngày) hoặc `null` khi không có.
+
+### Đổi tên thread
+```http
+PATCH /v1/threads/{thread_id}
+Content-Type: application/json
+Authorization: Bearer <KEY>
+```
+```json
+{"title": "Tên mới cho hội thoại"}
+```
+
+**Response (200 OK):** object thread đã cập nhật (`id`, `title`, `url`, `created_at`, `updated_at`). Thiếu `title` → 400.
+
+### Xóa thread
+```http
+DELETE /v1/threads/{thread_id}
+Authorization: Bearer <KEY>
+```
+
+**Response (200 OK):**
+```json
+{"deleted": true, "id": "785011a9-bccb-4595-adb5-4f23a9d05463"}
+```
+Xóa vĩnh viễn phía muse.ai, không thể hoàn tác. Thread không tồn tại → 404.
 
 ---
 

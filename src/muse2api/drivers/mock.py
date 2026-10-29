@@ -8,10 +8,13 @@ from __future__ import annotations
 
 import asyncio
 import struct
+import time
 import zlib
 from collections.abc import AsyncIterator
 
 from ..accounts.model import Account
+from ..errors import NotFound
+from ..upstream.muse import parse_thread_ref, thread_url
 from .base import (
     ChatRequest,
     DriverCapabilities,
@@ -19,6 +22,7 @@ from .base import (
     MediaResult,
     MuseDriver,
     SessionInfo,
+    ThreadInfo,
     VideoRequest,
 )
 
@@ -49,6 +53,46 @@ class MockDriver(MuseDriver):
 
     def __init__(self, delay: float = 0.01) -> None:
         self.delay = delay
+        self._clock = time.time
+        # thread id -> {"title", "created_at", "updated_at", "messages": [(role, text, ts)]}
+        self.threads: dict[str, dict] = {}
+        self._seed_threads()
+
+    def _seed_threads(self) -> None:
+        now = int(self._clock())
+        seeds = [
+            ("6b6e1a2c-0000-4000-8000-000000000001", "Seed alpha", [
+                ("user", "hello alpha"), ("assistant", "Hi! Mock alpha here."),
+            ]),
+            ("6b6e1a2c-0000-4000-8000-000000000002", "Seed beta", [
+                ("user", "hello beta"), ("assistant", "Mock beta reporting."),
+            ]),
+            ("6b6e1a2c-0000-4000-8000-000000000003", "Seed gamma", [
+                ("user", "hello gamma"), ("assistant", "Mock gamma at your service."),
+            ]),
+        ]
+        for i, (tid, title, msgs) in enumerate(seeds):
+            updated = now - (i + 1) * 600
+            self.threads[tid] = {
+                "title": title,
+                "created_at": updated - len(msgs) * 30,
+                "updated_at": updated,
+                "messages": [(role, text, updated - (len(msgs) - j) * 30)
+                             for j, (role, text) in enumerate(msgs)],
+            }
+
+    def _thread(self, thread_id: str) -> dict:
+        try:
+            tid = parse_thread_ref(thread_id)
+        except ValueError as exc:
+            raise NotFound(str(exc)) from exc
+        if tid not in self.threads:
+            raise NotFound(f"thread '{tid}' not found")
+        return self.threads[tid]
+
+    def _view(self, tid: str, data: dict) -> ThreadInfo:
+        return ThreadInfo(id=tid, title=data["title"], url=thread_url(tid),
+                          created_at=data["created_at"], updated_at=data["updated_at"])
 
     async def chat_stream(self, account: Account, req: ChatRequest) -> AsyncIterator[str]:
         reply = f"[mock:{req.model}] You said: {req.prompt[-200:]}"
@@ -86,6 +130,41 @@ class MockDriver(MuseDriver):
                 req.on_progress(p)
         # Not a playable video; placeholder bytes with the right mime for plumbing tests.
         return MediaResult(data=b"\x00\x00\x00\x18ftypmp42mock", mime="video/mp4", kind="video")
+
+    # ------------------------------------------------------------ threads
+    async def list_threads(
+        self, account: Account, limit: int = 20, cursor: str | None = None
+    ) -> tuple[list[ThreadInfo], str | None]:
+        offset = 0
+        if cursor:
+            try:
+                offset = max(0, int(cursor))
+            except ValueError:
+                offset = 0
+        ordered = sorted(self.threads.items(),
+                         key=lambda kv: kv[1]["updated_at"], reverse=True)
+        page = [self._view(tid, data) for tid, data in ordered[offset:offset + limit]]
+        next_cursor = str(offset + limit) if offset + limit < len(ordered) else None
+        return page, next_cursor
+
+    async def thread_messages(self, account: Account, thread_id: str) -> list[dict]:
+        data = self._thread(thread_id)
+        return [{"role": role, "content": text, "created_at": ts}
+                for role, text, ts in data["messages"]]
+
+    async def rename_thread(self, account: Account, thread_id: str, title: str) -> ThreadInfo:
+        data = self._thread(thread_id)
+        data["title"] = title
+        data["updated_at"] = int(self._clock())
+        try:
+            tid = parse_thread_ref(thread_id)
+        except ValueError as exc:
+            raise NotFound(str(exc)) from exc
+        return self._view(tid, data)
+
+    async def delete_thread(self, account: Account, thread_id: str) -> None:
+        self._thread(thread_id)  # raises NotFound when missing
+        del self.threads[parse_thread_ref(thread_id)]
 
     async def renew_session(self, account: Account) -> SessionInfo:
         return SessionInfo(ok=True, meta={"driver": "mock"})

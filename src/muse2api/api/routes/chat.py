@@ -16,7 +16,7 @@ from ...core.prompt import flatten_messages, message_turns
 from ...drivers.base import ChatRequest, InputImage
 from ...errors import InvalidRequest, Muse2APIError
 from ...services.container import Services
-from ..deps import get_services, require_api_key
+from ..deps import ACCOUNT_ROUTING_PARAMS, get_services, require_api_key
 from ..schemas import ChatCompletionRequest
 
 log = logging.getLogger(__name__)
@@ -32,9 +32,38 @@ def _sse(payload: dict | str) -> bytes:
     return f"data: {data}\n\n".encode()
 
 
-@router.post("/v1/chat/completions")
+@router.post(
+    "/v1/chat/completions",
+    openapi_extra={
+        "parameters": ACCOUNT_ROUTING_PARAMS,
+        "requestBody": {"content": {"application/json": {"examples": {
+            "simple": {
+                "summary": "Basic chat",
+                "value": {
+                    "model": "muse-chat",
+                    "messages": [{"role": "user", "content": "Xin chào!"}],
+                },
+            },
+            "continue-thread": {
+                "summary": "Continue a conversation",
+                "value": {
+                    "model": "muse-chat",
+                    "thread": "https://muse.ai/threads/<id>",
+                    "messages": [{"role": "user", "content": "Tiếp tục nào"}],
+                },
+            },
+        }}}},
+    },
+)
 async def chat_completions(body: ChatCompletionRequest, request: Request,
                            svc: Services = Depends(get_services)):
+    """OpenAI-compatible chat completion with streaming, vision and threads.
+
+    The response (and the final SSE chunk when streaming) carries a ``thread``
+    URL; pass it back as ``thread`` on the next call to continue the same
+    upstream conversation. SSE comment heartbeats (``: keepalive``) may precede
+    the first token on slow requests.
+    """
     request.state.model = body.model  # logged even if it does not resolve
     spec = resolve_model(body.model, "chat")
     request.state.model = body.model or spec.id

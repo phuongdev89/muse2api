@@ -12,6 +12,7 @@ _CREATED = int(time.time())
 
 @router.get("/v1/models")
 async def list_models() -> dict:
+    """Chat, image and video models plus their aliases (``alias_of`` marks an alias)."""
     data = [
         {"id": m.id, "object": "model", "created": _CREATED, "owned_by": m.owned_by, "kind": m.kind}
         for m in MODELS.values()

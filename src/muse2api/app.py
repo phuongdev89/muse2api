@@ -78,6 +78,10 @@ def create_app(settings: Settings | None = None, driver: MuseDriver | None = Non
 
     openapi_tags = [
         {"name": "chat", "description": "OpenAI-compatible chat completion endpoints."},
+        {"name": "threads", "description": (
+            "Manage the muse.ai conversation threads behind chat completions: "
+            "list them, read a transcript, rename or delete them."
+        )},
         {"name": "images", "description": "Text-to-image and image editing endpoints."},
         {"name": "videos", "description": "Text-to-video and image-to-video generation endpoints."},
         {"name": "models", "description": "List available and alias models."},
@@ -88,7 +92,28 @@ def create_app(settings: Settings | None = None, driver: MuseDriver | None = Non
 
     app = FastAPI(
         title="muse2api",
-        description="OpenAI-compatible gateway and proxy for muse.ai services (Chat, Images, Videos).",
+        description=(
+            "OpenAI-compatible gateway in front of muse.ai.\n\n"
+            "**Chat** — `/v1/chat/completions` with streaming, vision inputs and "
+            "conversation **threads**: every response (and the final SSE chunk) carries "
+            "a `thread` URL; pass it back as `thread` on the next call to continue the "
+            "same upstream conversation. `/v1/threads` lists past conversations and can "
+            "rename or delete them.\n\n"
+            "**Images** — `/v1/images/generations` (text-to-image, up to 4 reference "
+            "images), `/v1/images/edits` (multipart) plus helpers: outfit extract / "
+            "try-on, object removal, accessory add, background replace. Set "
+            '`"async": true` to get a pollable task instead of blocking when a '
+            "generation may outlive proxy timeouts.\n\n"
+            "**Videos** — `/v1/videos` always runs as a task; poll "
+            "`GET /v1/videos/{task_id}` for the result URL.\n\n"
+            "**Account routing** — send `X-Account-ID` (or `?account_id=`) on any "
+            "generation endpoint to pin the request to one pool account; otherwise the "
+            "gateway fails over automatically.\n\n"
+            "**Admin** — `/admin/*` manages the account pool, client API keys, tasks, "
+            "the request log and stats. The web [dashboard](/dashboard) is built on "
+            "these endpoints.\n\n"
+            "Authenticate with `Authorization: Bearer <key>` or `X-API-Key: <key>`."
+        ),
         version=__version__,
         openapi_tags=openapi_tags,
         docs_url="/docs",
