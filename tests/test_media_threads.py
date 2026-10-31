@@ -205,9 +205,9 @@ async def test_gateway_passes_affinity_hint_for_media(monkeypatch):
     from contextlib import asynccontextmanager
 
     @asynccontextmanager
-    async def spy_lease(exclude=None, hint=None, account_id=None):
+    async def spy_lease(exclude=None, hint=None, account_id=None, kind=None):
         captured_hints.append(hint)
-        async with orig_lease(exclude=exclude, hint=hint, account_id=account_id) as lease:
+        async with orig_lease(exclude=exclude, hint=hint, account_id=account_id, kind=kind) as lease:
             yield lease
 
     monkeypatch.setattr(pool, "lease", spy_lease)

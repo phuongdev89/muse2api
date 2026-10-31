@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Request
 from ...core.media import load_image_ref
 from ...core.models import resolve_model
 from ...drivers.base import InputImage, VideoRequest
-from ...errors import NotFound
+from ...errors import NoAccountAvailable, NotFound
 from ...services.container import Services
 from ...services.tasks import Task
 from ..deps import ACCOUNT_ROUTING_PARAMS, get_services, public_base, require_api_key
@@ -41,6 +41,12 @@ async def create_video(body: VideoCreateRequest, request: Request,
     spec = resolve_model(body.model, "video")
     request.state.model = body.model or spec.id
     account_id = request.headers.get("x-account-id") or request.query_params.get("account_id")
+    # Fail the submission outright when no unpinned account serves video, instead of
+    # letting the task start and fail a moment later with the same error. An empty
+    # pool is left alone: drivers that need no accounts still work anonymously.
+    if (not account_id and svc.pool.all()
+            and not svc.pool.has_alternative((), "video")):
+        raise NoAccountAvailable("no account is enabled for 'video' requests")
     frame_ref = body.image or body.input_reference
     first_frame = InputImage(*(await load_image_ref(frame_ref))) if frame_ref else None
     base = public_base(request)

@@ -123,12 +123,14 @@ async def import_accounts(body: AccountsImportRequest,
 @router.patch("/accounts/{account_id}")
 async def update_account(account_id: str, body: AccountUpdate,
                          svc: Services = Depends(get_services)) -> dict:
-    """Update label / enabled / cookies. Fresh cookies re-enable an invalid account."""
+    """Update label / enabled / routing / cookies. Fresh cookies re-enable an invalid account."""
     acc = _get(svc, account_id)
     if body.label is not None:
         acc.label = body.label
     if body.enabled is not None:
         acc.enabled = body.enabled
+    if body.routing is not None:
+        acc.routing = body.routing
     if body.cookies is not None:
         acc.cookies = {k: v for k, v in body.cookies.items() if v}
         # Fresh cookies give an invalid account another chance.

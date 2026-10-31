@@ -7,6 +7,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..accounts.model import Routing
+
 
 class _Lenient(BaseModel):
     model_config = ConfigDict(extra="allow")
@@ -124,6 +126,14 @@ class AccountsImportRequest(BaseModel):
 class AccountUpdate(BaseModel):
     label: str | None = None
     enabled: bool | None = None
+    routing: Routing | None = Field(
+        default=None,
+        description=(
+            "Which request kinds this account may serve: {\"chat\": bool, "
+            "\"image\": bool, \"video\": bool}. Requests of a disabled kind are "
+            "routed to other accounts instead. Replaces all three flags."
+        ),
+    )
     cookies: dict[str, str] | None = Field(
         default=None,
         description=(

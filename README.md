@@ -308,7 +308,7 @@ All settings come from environment variables (prefix `MUSE2API_`) or a `.env` fi
 | `MUSE2API_MAX_FAILOVER` | `2` | Maximum number of retries on another account |
 | `MUSE2API_ACCOUNT_MAX_CONCURRENCY` | `1` | Parallel requests per account (browser driver: one tab each); 4 works well |
 | `MUSE2API_CHROMIUM_PATH` | auto-detected | Path to the browser executable |
-| `MUSE2API_KEEPALIVE_ENABLED` | `false` | Periodically renew sessions in the background |
+| `MUSE2API_KEEPALIVE_ENABLED` | `true` | Periodically renew sessions in the background |
 | `MUSE2API_MATTING_MODEL` | `birefnet-general` | Model for `background: "transparent"` (`birefnet-general-lite` is faster) |
 
 ## Roadmap

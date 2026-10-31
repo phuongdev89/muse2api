@@ -12,7 +12,7 @@ from starlette.datastructures import UploadFile
 from ...core.media import load_image_ref
 from ...core.models import resolve_model
 from ...drivers.base import ImageRequest, InputImage, MediaResult
-from ...errors import InvalidRequest, NotFound
+from ...errors import InvalidRequest, NoAccountAvailable, NotFound
 from ...services.container import Services
 from ...services.tasks import Task
 from ..deps import ACCOUNT_ROUTING_PARAMS, get_services, public_base, require_api_key
@@ -104,6 +104,12 @@ async def _generate(body: ImageGenerationRequest, refs: list[InputImage],
     if len(refs) > MAX_REFERENCE_IMAGES:
         raise InvalidRequest(f"at most {MAX_REFERENCE_IMAGES} reference images are supported")
     account_id = request.headers.get("x-account-id") or request.query_params.get("account_id")
+    # For async submissions, fail outright when no unpinned account serves images
+    # instead of launching a task that fails a moment later with the same error.
+    # An empty pool is left alone: drivers that need no accounts still work anonymously.
+    if (body.async_ and not account_id and svc.pool.all()
+            and not svc.pool.has_alternative((), "image")):
+        raise NoAccountAvailable("no account is enabled for 'image' requests")
     if body.async_:
         return _submit(body, refs, request, svc, account_id=account_id)
     return await _run(body, refs, public_base(request), svc, account_id=account_id)

@@ -1720,6 +1720,7 @@ code.mono-inline {
   }
 
   // ---- accounts ----
+  const ROUTING_KINDS = [["chat", "Chat"], ["image", "Tạo ảnh"], ["video", "Tạo video"]];
   const isQuota = (a) => /quota|credit|out of (usage|messages)|limit reached|exhaust/i.test(a.last_error || "");
   function accState(a, t) {
     if (!a.enabled) return {key: "disabled", label: "đã tắt", cls: "mute", badge: "b-mute"};
@@ -1735,6 +1736,8 @@ code.mono-inline {
     const t = now(), s = accState(a, t);
     const cooling = s.key === "quota" || s.key === "cooling";
     const name = a.label || a.id;
+    const routing = a.routing || {chat: true, image: true, video: true};
+    const routingOff = ROUTING_KINDS.filter(([k]) => !routing[k]).map(([, l]) => l);
     return `<article class="panel acc s-${s.key}" data-id="${esc(a.id)}">
       <div class="acc-top">
         <div class="grow">
@@ -1754,8 +1757,10 @@ code.mono-inline {
           <span class="w"><b>${s.key === "quota" ? "Hết quota" : "Tạm nghỉ"}</b>Tự động dùng lại lúc ${esc(new Date(a.cooldown_until * 1000).toLocaleTimeString([], {hour12: false}))}</span>
         </div>` : ""}
       ${a.last_error ? `<div class="reason" title="last_error">${esc(a.last_error)}</div>` : ""}
+      ${routingOff.length ? `<div class="hint" title="Loại bị tắt sẽ tự chuyển sang account khác khi request tới">Điều hướng: tắt ${esc(routingOff.join(", "))}</div>` : ""}
       <div class="acc-actions">
         <button class="btn sm" type="button" data-act="edit">Sửa</button>
+        <button class="btn sm" type="button" data-act="routing" title="Chọn loại request account này xử lý: chat / tạo ảnh / tạo video">Điều hướng</button>
         ${state.capabilities.renew_session ? `<button class="btn sm" type="button" data-act="renew">Gia hạn</button>` : ""}
         <button class="btn sm" type="button" data-act="reset" ${s.key === "active" && !a.last_error ? "disabled" : ""} title="Xoá cooldown và lỗi, đưa về trạng thái hoạt động">Đặt lại</button>
         <button class="btn sm ghost" type="button" data-act="requests">Requests</button>
@@ -1769,7 +1774,12 @@ code.mono-inline {
     const t = now(), counts = {active: 0, quota: 0, cooling: 0, invalid: 0, disabled: 0};
     for (const a of state.accounts) counts[accState(a, t).key] += 1;
     const chip = (k, label, badge) => counts[k] ? `<span class="badge ${badge}">${label} <b>${counts[k]}</b></span>` : "";
+    // Warn when no usable account serves a request kind: those requests will fail.
+    const kindChips = ROUTING_KINDS.filter(([k]) => state.accounts.length
+      && !state.accounts.some((a) => a.enabled && a.status !== "invalid" && (a.routing || {chat: true, image: true, video: true})[k]))
+      .map(([, label]) => `<span class="badge b-err" title="Mở nút “Điều hướng” trên account để bật lại">⚠ Không account nào bật ${esc(label)}</span>`);
     $("#acc-summary").innerHTML = state.accounts.length ? [
+      ...kindChips,
       chip("active", "Hoạt động", "b-ok"), chip("quota", "Hết quota", "b-warn"), chip("cooling", "Đang nghỉ", "b-info"),
       chip("invalid", "Lỗi phiên", "b-err"), chip("disabled", "Đã tắt", "b-mute"),
     ].join("") : "";
@@ -1869,6 +1879,25 @@ code.mono-inline {
     toast(account ? "Đã cập nhật tài khoản" : "Đã thêm tài khoản");
     await loadAccountsPage();
   }
+
+  async function routingModal(a) {
+    const r = a.routing || {chat: true, image: true, video: true};
+    const saved = await modal({
+      title: "Điều hướng request",
+      body: `<p class="muted">Chọn loại request account <b>${esc(a.label || a.id)}</b> được phép xử lý. Loại bị tắt sẽ tự chuyển sang account khác.</p>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          ${ROUTING_KINDS.map(([k, label]) => `<label class="chk"><input type="checkbox" id="rt-${k}" ${r[k] ? "checked" : ""}>${label}</label>`).join("")}
+        </div>
+        <p class="hint">Mặc định cả ba loại đều bật; cần bật ít nhất một loại.</p>`,
+      actions: [{label: "Huỷ", value: null}, {label: "Lưu điều hướng", primary: true, cls: "primary",
+        collect: () => Object.fromEntries(ROUTING_KINDS.map(([k]) => [k, $(`#rt-${k}`).checked])),
+        check: (v) => (ROUTING_KINDS.some(([k]) => v[k]) ? "" : "Phải chọn ít nhất một loại request."),
+        submit: (routing) => api(`/admin/accounts/${encodeURIComponent(a.id)}`, {method: "PATCH", body: {routing}})}],
+    });
+    if (!saved) return;
+    toast("Đã cập nhật điều hướng");
+    await loadAccountsPage();
+  }
   $("#acc-new").addEventListener("click", () => guarded(() => editAccount()));
 
   $("#accounts").addEventListener("change", (e) => {
@@ -1889,6 +1918,7 @@ code.mono-inline {
     const act = btn.dataset.act;
     if (act === "requests") return go("requests", {account: id});
     if (act === "edit" && a) return guarded(() => editAccount(a));
+    if (act === "routing" && a) return guarded(() => routingModal(a));
     guarded(async () => {
       const path = `/admin/accounts/${encodeURIComponent(id)}`;
       if (act === "delete") {

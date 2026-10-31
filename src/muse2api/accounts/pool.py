@@ -141,14 +141,20 @@ class AccountPool:
         }
 
     # ---- scheduling ----
-    def _candidates(self, exclude: Iterable[str]) -> tuple[list[Account], bool, float | None]:
+    def _candidates(self, exclude: Iterable[str], kind: str | None = None) -> tuple[list[Account], bool, float | None]:
         """Returns (free candidates, whether a usable account is merely busy, and the
-        earliest time a cooling account comes back, if any)."""
+        earliest time a cooling account comes back, if any).
+
+        When ``kind`` is given, only accounts that allow that request kind count —
+        busy/cooling signals must not come from accounts that can never serve it.
+        """
         now = time.time()
         excluded = set(exclude)
         free, busy, back_at = [], False, None
         for acc in self._accounts.values():
             if acc.id in excluded or not acc.enabled or acc.status == AccountStatus.INVALID:
+                continue
+            if kind and not acc.allows(kind):
                 continue
             if not acc.is_available(now):  # cooling down
                 back_at = acc.cooldown_until if back_at is None else min(back_at, acc.cooldown_until)
@@ -159,10 +165,13 @@ class AccountPool:
             free.append(acc)
         return free, busy, back_at
 
-    def has_alternative(self, exclude: Iterable[str]) -> bool:
-        """Whether an enabled, valid account exists outside ``exclude`` (busy or cooling counts)."""
+    def has_alternative(self, exclude: Iterable[str], kind: str | None = None) -> bool:
+        """Whether an enabled, valid account exists outside ``exclude`` (busy or cooling counts).
+
+        With ``kind``, only accounts that allow that request kind qualify."""
         excluded = set(exclude)
         return any(a.id not in excluded and a.enabled and a.status != AccountStatus.INVALID
+                   and (not kind or a.allows(kind))
                    for a in self._accounts.values())
 
     async def acquire(
@@ -171,8 +180,10 @@ class AccountPool:
         exclude: Iterable[str] = (),
         hint: str | None = None,
         account_id: str | None = None,
+        kind: str | None = None,
     ) -> Account:
         if account_id:
+            # An explicit pin overrides routing flags as well as enabled/status.
             acc = self._accounts.get(account_id)
             if not acc:
                 raise NoAccountAvailable(f"account {account_id} not found in pool")
@@ -192,10 +203,16 @@ class AccountPool:
                         continue
 
         exclude = tuple(exclude)
+        if not self.has_alternative(exclude, kind):
+            # Nothing will ever serve this kind — say so instead of waiting in vain.
+            raise NoAccountAvailable(
+                f"no account is enabled for '{kind}' requests"
+                + (f" outside {list(exclude)}" if exclude else "")
+            )
         deadline = time.monotonic() + self.acquire_timeout
         async with self._cond:
             while True:
-                free, busy, back_at = self._candidates(exclude)
+                free, busy, back_at = self._candidates(exclude, kind)
                 if free:
                     acc = self.strategy.choose(free, hint)
                     self._inflight[acc.id] += 1
@@ -204,7 +221,8 @@ class AccountPool:
                 remaining = deadline - time.monotonic()
                 back_in = None if back_at is None else back_at - time.time()
                 if not busy and back_in is None:
-                    raise NoAccountAvailable("no usable account in pool")
+                    raise NoAccountAvailable(
+                        f"no usable account{' for ' + kind + ' requests' if kind else ''} in pool")
                 if remaining <= 0 or (not busy and back_in > remaining):
                     # Nothing frees up before the deadline; say why instead of waiting in vain.
                     reason = "busy" if busy else "cooling down"
@@ -254,8 +272,9 @@ class AccountPool:
         exclude: Iterable[str] = (),
         hint: str | None = None,
         account_id: str | None = None,
+        kind: str | None = None,
     ) -> AsyncIterator[Lease]:
-        acc = await self.acquire(exclude=exclude, hint=hint, account_id=account_id)
+        acc = await self.acquire(exclude=exclude, hint=hint, account_id=account_id, kind=kind)
         lease = Lease(acc)
         try:
             yield lease

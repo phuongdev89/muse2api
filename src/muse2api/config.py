@@ -89,7 +89,7 @@ class Settings(BaseSettings):
     )
 
     # --- keepalive (session renewal) ---
-    keepalive_enabled: bool = False
+    keepalive_enabled: bool = True
     keepalive_interval: float = 6 * 3600
 
     @property

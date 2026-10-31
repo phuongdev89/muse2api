@@ -20,11 +20,28 @@ def _now() -> float:
     return time.time()
 
 
+class Routing(BaseModel):
+    """Per-kind routing switches: which request types this account may serve.
+
+    Requests of a disabled kind are routed to other accounts instead of
+    failing on this one.
+    """
+
+    chat: bool = True
+    image: bool = True
+    video: bool = True
+
+
 class Account(BaseModel):
     id: str = Field(default_factory=lambda: "acc_" + uuid.uuid4().hex[:10])
     label: str = ""
     enabled: bool = True
     status: AccountStatus = AccountStatus.ACTIVE
+
+    routing: Routing = Field(
+        default_factory=Routing,
+        description="Which request kinds (chat/image/video) this account is eligible for.",
+    )
 
     cookies: dict[str, str] = Field(default_factory=dict)
     cookie_expires: dict[str, int] = Field(
@@ -48,6 +65,10 @@ class Account(BaseModel):
         if self.status == AccountStatus.COOLING:
             return (now or _now()) >= self.cooldown_until
         return True
+
+    def allows(self, kind: str) -> bool:
+        """Whether this account may serve requests of the given kind (chat/image/video)."""
+        return bool(getattr(self.routing, kind, True))
 
     def public(self) -> dict[str, Any]:
         """Serialisable view with cookie values masked."""

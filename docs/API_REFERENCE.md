@@ -447,7 +447,7 @@ Yêu cầu `MUSE2API_ADMIN_KEY`.
 | `GET` | `/admin/status` | Tình trạng driver, pool accounts, Chromium status |
 | `GET` | `/admin/accounts` | Danh sách tài khoản muse.ai trong pool |
 | `POST` | `/admin/accounts` | Thêm tài khoản mới bằng cookies |
-| `PATCH` | `/admin/accounts/{id}` | Cập nhật nhãn, trạng thái bật/tắt, hoặc cookies mới |
+| `PATCH` | `/admin/accounts/{id}` | Cập nhật nhãn, bật/tắt, điều hướng (`routing {chat, image, video}`) hoặc cookies mới |
 | `DELETE`| `/admin/accounts/{id}` | Xóa tài khoản khỏi pool |
 | `GET` | `/admin/accounts/{id}/quota` | Kiểm tra quota tài khoản trực tiếp từ upstream |
 | `GET` | `/admin/keys` | Danh sách các API Key đã cấp |

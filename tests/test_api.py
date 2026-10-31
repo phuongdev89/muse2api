@@ -191,6 +191,20 @@ def test_video_task(client, auth):
     assert task["result"]["url"].endswith(".mp4")
 
 
+def test_video_submit_fails_fast_when_no_account_allows_video(client, auth, admin):
+    r = client.post("/admin/accounts", headers=admin,
+                    json={"label": "nv", "cookies": {"hatch_sess": "secretvalue123"}})
+    acc_id = r.json()["account"]["id"]
+    client.patch(f"/admin/accounts/{acc_id}", headers=admin,
+                 json={"routing": {"chat": True, "image": True, "video": False}})
+    # The submission itself fails with 503 instead of a task that fails a moment later.
+    r = client.post("/v1/videos", headers=auth, json={"prompt": "waves", "duration": 5})
+    assert r.status_code == 503
+    body = r.json()["error"]
+    assert body["code"] == "no_account_available"
+    assert "video" in body["message"]
+
+
 def test_reserved_endpoints(client, auth):
     assert client.post("/v1/responses", headers=auth, json={}).status_code == 501
 
@@ -304,6 +318,23 @@ def test_admin_accounts_crud(client, auth, admin):
     assert client.post(f"/admin/accounts/{acc['id']}/renew", headers=admin).json()["ok"]
     assert client.delete(f"/admin/accounts/{acc['id']}", headers=admin).status_code == 200
     assert client.get("/admin/status", headers=admin).json()["accounts"]["total"] == 0
+
+
+def test_admin_account_routing(client, admin):
+    r = client.post("/admin/accounts", headers=admin,
+                    json={"label": "rt", "cookies": {"hatch_sess": "secretvalue123"}})
+    assert r.status_code == 200
+    acc_id = r.json()["account"]["id"]
+    # All kinds are enabled by default.
+    assert r.json()["account"]["routing"] == {"chat": True, "image": True, "video": True}
+
+    r = client.patch(f"/admin/accounts/{acc_id}", headers=admin,
+                     json={"routing": {"chat": True, "image": False, "video": False}})
+    assert r.json()["account"]["routing"] == {"chat": True, "image": False, "video": False}
+
+    # The flags persist and are visible in the account list view.
+    listed = {a["id"]: a for a in client.get("/admin/accounts", headers=admin).json()["data"]}
+    assert listed[acc_id]["routing"] == {"chat": True, "image": False, "video": False}
 
 
 def test_admin_account_cookie_header_string(client, admin):
